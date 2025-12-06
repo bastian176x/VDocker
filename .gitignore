@@ -1,0 +1,109 @@
+################################################################################
+# NODE & DEPENDENCIAS
+################################################################################
+
+# Node modules (raíz, app/, frontend/)
+node_modules/
+app/node_modules/
+frontend/node_modules/
+
+# Cache de npm
+.npm/
+npm-debug.log*
+package-lock.json.tmp
+
+################################################################################
+# BUILD / COMPILACIÓN
+################################################################################
+
+# Salidas de Vite
+dist/
+dist-ssr/
+frontend/dist/
+frontend/.vite/
+
+# Salidas de Electron y electron-builder
+dist-electron/
+out/
+build/
+release/
+*.asar
+
+# Output temporal de electron-builder
+/**/*.app
+/**/*.exe
+/**/*.dmg
+/**/*.snap
+/**/*.AppImage
+/**/*.pkg
+/**/*.deb
+/**/*.rpm
+
+################################################################################
+# ARCHIVOS TEMPORALES / CACHE
+################################################################################
+
+# Cache genérica
+tmp/
+temp/
+*.tmp
+*.temp
+
+# Logs
+logs/
+*.log
+log.txt
+
+# PM2 (si lo usas alguna vez)
+.pids/
+*.pid
+*.seed
+
+################################################################################
+# SISTEMA OPERATIVO
+################################################################################
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+################################################################################
+# IDE / EDITORES
+################################################################################
+
+# VSCode
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json
+
+# JetBrains (por si algún día usas WebStorm)
+.idea/
+
+################################################################################
+# ARCHIVOS SENSIBLES / CONFIG PRIVADA
+################################################################################
+
+# Variables de entorno
+.env
+.env.*
+
+
+################################################################################
+# CARPETAS INTERNAS DE LA APP (si son generadas en runtime)
+################################################################################
+
+# Si app/filesystem genera archivos en tiempo de ejecución
+app/filesystem/data/
+app/filesystem/tmp/
+app/filesystem/cache/
+
+# Si tu app guarda topologías generadas por el usuario
+app/topology/generated/
+

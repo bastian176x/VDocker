@@ -1,0 +1,16 @@
+{
+  "name": "my-electron-app",
+  "version": "1.0.0",
+  "main": "app/main.js",
+  "scripts": {
+    "dev": "concurrently -k \"npm:dev-frontend\" \"npm:dev-electron\"",
+    "dev-frontend": "cd frontend && npm run dev",
+    "dev-electron": "wait-on http://localhost:3000 && electron .",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "electron": "^39.2.6",
+    "wait-on": "^7.2.0"
+  }
+}
