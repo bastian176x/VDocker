@@ -2,15 +2,35 @@
   "name": "my-electron-app",
   "version": "1.0.0",
   "main": "app/main.js",
+  "description": "Mi aplicación Electron",
+  "author": "Basti",
   "scripts": {
     "dev": "concurrently -k \"npm:dev-frontend\" \"npm:dev-electron\"",
     "dev-frontend": "cd frontend && npm run dev",
     "dev-electron": "wait-on http://localhost:3000 && electron .",
-    "start": "electron ."
+    "start": "electron .",
+    "build-frontend": "cd frontend && npm install && npm run build",
+    "build": "npm run build-frontend && electron-builder"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
     "electron": "^39.2.6",
+    "electron-builder": "^26.0.12",
     "wait-on": "^7.2.0"
+  },
+  "build": {
+    "appId": "com.miapp.app",
+    "productName": "MiAplicacion",
+    "forceCodeSigning": false,
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    },
+    "files": [
+      "app/**/*",
+      "frontend/dist/**/*"
+    ]
   }
 }

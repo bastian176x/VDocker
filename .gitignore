@@ -12,6 +12,10 @@ frontend/node_modules/
 npm-debug.log*
 package-lock.json.tmp
 
+
+# Cache personaliza para electron-builder (fix winCodeSign)
+.cache/
+
 ################################################################################
 # BUILD / COMPILACIÓN
 ################################################################################
