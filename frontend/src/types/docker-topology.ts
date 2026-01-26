@@ -1,4 +1,5 @@
-export type NodeType = 
+//docker-topology.ts
+export type NodeType =
   | 'linux-server'
   | 'router'
   | 'firewall'
@@ -13,7 +14,12 @@ export interface DockerNode {
   position: { x: number; y: number };
   data: {
     name: string;
+    containerName?: string;
     dockerImage: string;
+    command?: string;
+    privileged?: boolean;
+    tty?: boolean;
+    stdinOpen?: boolean;
     ports: string[];
     networks: string[];
     envVars: { key: string; value: string }[];

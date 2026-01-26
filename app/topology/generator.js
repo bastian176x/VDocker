@@ -1,0 +1,125 @@
+// app/topology/generator.js
+const yaml = require('js-yaml');
+
+/**
+ * Generates a Docker Compose v3.8 YAML string from an array of nodes.
+ * @param {Array} nodes - Array of DockerNode objects.
+ * @returns {string} - The generated YAML string.
+ */
+/**
+ * Generates a Docker Compose v3.8 YAML string from nodes and connections.
+ * @param {Array} nodes - Array of DockerNode objects.
+ * @param {Array} connections - Array of Connection objects.
+ * @returns {string} - The generated YAML string.
+ */
+function generateComposeYAML(nodes, connections = []) {
+    const version = '3.8';
+    const services = {};
+    const networks = {};
+    const usedHostPorts = new Set(); // SET para detectar colisiones
+
+    if (!nodes || !Array.isArray(nodes)) {
+        return yaml.dump({ version, services: {} });
+    }
+
+    // --- FIX: FILTRADO DE CONEXIONES FANTASMA ---
+    // Solo consideramos conexiones válidas donde ambos nodos existen.
+    const validConnections = connections.filter(conn => {
+        const sourceExists = nodes.some(n => n.id === conn.source);
+        const targetExists = nodes.some(n => n.id === conn.target);
+        return sourceExists && targetExists;
+    });
+    // ---------------------------------------------
+
+    // 1. Generate Networks (Usando solo las válidas)
+    validConnections.forEach(conn => {
+        const safeId = conn.id.replace(/[^a-zA-Z0-9_-]/g, '_');
+        networks[`net_${safeId}`] = { driver: 'bridge' };
+    });
+
+    // 2. Generate Services
+    nodes.forEach(node => {
+        if (!node.data) return;
+
+        // --- FIX 1: SANITIZACIÓN DE NOMBRES ---
+        const rawName = node.data.name || `service-${node.id}`;
+        // Solo permitimos letras, números y guiones bajo.
+        const safeServiceName = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+
+        const serviceConfig = {
+            image: node.data.dockerImage || 'alpine:latest',
+            container_name: `${safeServiceName}_container`, // Nombre predecible y seguro
+            labels: {
+                'com.topology.node_id': node.id,
+                'com.topology.managed': 'true'
+            },
+            cap_add: ['NET_ADMIN', 'NET_RAW']
+        };
+
+        // 1. SOPORTE PARA COMANDO PERSONALIZADO
+        if (node.data.command) {
+            // Si el usuario escribió un comando, lo usamos.
+            // Docker Compose acepta string o array. Lo pasamos directo.
+            serviceConfig.command = node.data.command;
+        }
+
+        // 2. SOPORTE PARA MODO PRIVILEGIADO
+        if (node.data.privileged) {
+            serviceConfig.privileged = true;
+        }
+
+        // Redes: Buscamos solo en validConnections
+        const nodeNetworks = validConnections
+            .filter(conn => conn.source === node.id || conn.target === node.id)
+            .map(conn => `net_${conn.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+
+        if (nodeNetworks.length > 0) {
+            serviceConfig.networks = nodeNetworks;
+        } else {
+            // FIX: Si no tiene cables, NO lo aislamos con 'none' si tiene puertos expuestos.
+            // Dejamos que use la red 'default' de Docker para que funcionen los port-mappings.
+            // Solo usamos 'none' si realmente queremos aislamiento total.
+            if (!node.data.ports || node.data.ports.length === 0) {
+                serviceConfig.network_mode = 'none';
+            }
+        }
+
+        if (node.data.tty) serviceConfig.tty = true;
+        if (node.data.stdinOpen) serviceConfig.stdin_open = true;
+
+        // --- FIX 2: VALIDACIÓN DE PUERTOS (Anti-Colisión) ---
+        if (node.data.ports && node.data.ports.length > 0) {
+            serviceConfig.ports = [];
+            node.data.ports.forEach(p => {
+                // Formato esperado: "8080:80" o "80"
+                const parts = p.split(':');
+                const hostPort = parts.length > 1 ? parts[0] : null;
+
+                if (hostPort) {
+                    if (usedHostPorts.has(hostPort)) {
+                        throw new Error(`CONFLICTO CRÍTICO: El puerto ${hostPort} ya está en uso por otro nodo. Cámbialo.`);
+                    }
+                    usedHostPorts.add(hostPort);
+                }
+                serviceConfig.ports.push(p);
+            });
+        }
+
+        // Volúmenes y EnvVars
+        if (node.data.volumes) serviceConfig.volumes = node.data.volumes;
+        if (node.data.envVars) {
+            const envObj = {};
+            node.data.envVars.forEach(e => { if (e.key) envObj[e.key] = e.value || ''; });
+            serviceConfig.environment = envObj;
+        }
+
+        services[safeServiceName] = serviceConfig;
+    });
+
+    const composeObj = { version, services };
+    if (Object.keys(networks).length > 0) composeObj.networks = networks;
+
+    return yaml.dump(composeObj);
+}
+
+module.exports = { generateComposeYAML };

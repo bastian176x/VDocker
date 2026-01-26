@@ -1,3 +1,4 @@
+// frontend/src/components/NodePalette.tsx
 import { Server, Router, Shield, Database, Globe, User, Bug } from 'lucide-react';
 import { NodeType } from '../types/docker-topology';
 
@@ -53,7 +54,7 @@ export function NodePalette({ onNodeDragStart }: NodePaletteProps) {
       <div className="p-4 border-b border-[#E5E5E5]">
         <h2 className="text-[#222222]">Componentes</h2>
       </div>
-      
+
       <div className="flex-1 overflow-y-auto">
         {categories.map((category, idx) => (
           <div key={idx} className="border-b border-[#E0E0E0] last:border-b-0">

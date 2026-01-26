@@ -1,3 +1,4 @@
+// frontend/src/components/Canvas.tsx
 import { useRef, useState } from 'react';
 import { DockerNode, Connection, NodeType, PortPosition } from '../types/docker-topology';
 import { NodeComponent } from './NodeComponent';
@@ -15,9 +16,66 @@ interface CanvasProps {
   onConnectionDelete: (connectionId: string) => void;
   onShowProperties: (nodeId: string) => void;
   mode: 'select' | 'connect' | 'delete';
+  onNodeDoubleClick: (nodeId: string) => void; // Nueva prop
+  nodeStates: Record<string, { status: string; containerId: string }>; // Nueva prop
   zoom: number;
   onZoomChange: (zoom: number) => void;
 }
+
+// Configuración robusta por tipo de nodo
+const getNodeDefaults = (type: NodeType) => {
+  const defaults = {
+    name: '',
+    dockerImage: '',
+    envVars: [] as { key: string; value: string }[],
+    ports: [] as string[],
+    volumes: [] as string[]
+  };
+
+  switch (type) {
+    case 'database':
+      return {
+        ...defaults,
+        name: `db-postgres-${Date.now().toString().slice(-4)}`,
+        dockerImage: 'postgres:15-alpine',
+        // CRÍTICO: Postgres requiere contraseña para arrancar
+        envVars: [{ key: 'POSTGRES_PASSWORD', value: 'admin123' }],
+        ports: ['5432']
+      };
+
+    case 'web-server':
+      return {
+        ...defaults,
+        name: `web-nginx-${Date.now().toString().slice(-4)}`,
+        dockerImage: 'nginx:alpine',
+        ports: ['80']
+      };
+
+    case 'vulnerable-service':
+      return {
+        ...defaults,
+        name: `vuln-dvwa-${Date.now().toString().slice(-4)}`,
+        dockerImage: 'vulnerables/web-dvwa',
+        ports: ['80']
+      };
+
+    case 'linux-server':
+      return {
+        ...defaults,
+        name: `ubuntu-server-${Date.now().toString().slice(-4)}`,
+        dockerImage: 'ubuntu:latest',
+      };
+
+    case 'router':
+    case 'client':
+    default:
+      return {
+        ...defaults,
+        name: `${type}-${Date.now().toString().slice(-4)}`,
+        dockerImage: 'alpine:latest',
+      };
+  }
+};
 
 export function Canvas({
   nodes,
@@ -30,6 +88,8 @@ export function Canvas({
   onConnectionAdd,
   onConnectionDelete,
   onShowProperties,
+  onNodeDoubleClick,
+  nodeStates,
   mode,
   zoom,
   onZoomChange
@@ -46,24 +106,30 @@ export function Canvas({
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     const nodeType = e.dataTransfer.getData('nodeType') as NodeType;
-    
+
     if (!nodeType || !canvasRef.current) return;
 
     const rect = canvasRef.current.getBoundingClientRect();
     const x = (e.clientX - rect.left - panOffset.x) / zoom;
     const y = (e.clientY - rect.top - panOffset.y) / zoom;
 
+    // 1. Obtenemos la configuración preparada
+    const defaults = getNodeDefaults(nodeType);
+
     const newNode: DockerNode = {
       id: `node-${Date.now()}`,
       type: nodeType,
       position: { x, y },
       data: {
-        name: `${nodeType}-${nodes.length + 1}`,
-        dockerImage: getDefaultImage(nodeType),
-        ports: [],
+        name: defaults.name,
+        dockerImage: defaults.dockerImage,
+        containerName: '', // Opcional, dejamos que Docker asigne si está vacío
+        tty: true,
+        stdinOpen: true,
+        ports: defaults.ports,
         networks: ['default'],
-        envVars: [],
-        volumes: []
+        envVars: defaults.envVars,
+        volumes: defaults.volumes
       }
     };
 
@@ -75,7 +141,7 @@ export function Canvas({
       e.preventDefault();
       return;
     }
-    
+
     const node = nodes.find(n => n.id === nodeId);
     if (!node || !canvasRef.current) return;
 
@@ -91,7 +157,7 @@ export function Canvas({
     // Solo activar panning cuando se hace clic en el canvas o en el contenido (no en nodos)
     const target = e.target as HTMLElement;
     const isCanvasOrContent = target === canvasRef.current || target === contentRef.current || target.closest('[data-canvas-background]');
-    
+
     if (e.button === 0 && !draggingNodeId && mode === 'select' && isCanvasOrContent) {
       setIsPanning(true);
       setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
@@ -152,7 +218,7 @@ export function Canvas({
   const getPortPosition = (node: DockerNode, port: PortPosition) => {
     const nodeWidth = 120;
     const nodeHeight = 100;
-    
+
     const baseCenterX = node.position.x + nodeWidth / 2;
     const baseCenterY = node.position.y + nodeHeight / 2;
 
@@ -183,7 +249,7 @@ export function Canvas({
     // Auto-detectar el mejor puerto basado en la posición relativa
     const nodeWidth = 120;
     const nodeHeight = 100;
-    
+
     const sourceCenterX = source.position.x + nodeWidth / 2;
     const sourceCenterY = source.position.y + nodeHeight / 2;
     const targetCenterX = target.position.x + nodeWidth / 2;
@@ -218,6 +284,13 @@ export function Canvas({
 
   // Crear path de curva bezier
   const createCurvePath = (x1: number, y1: number, x2: number, y2: number) => {
+    // --- FIX: Bug de línea horizontal invisible ---
+    // Si la línea es perfectamente horizontal, el filtro SVG falla al calcular el bounding box (altura 0).
+    // Añadimos un 'epsilon' imperceptible para forzar el renderizado.
+    if (Math.abs(y1 - y2) < 0.5) {
+      y2 += 0.5;
+    }
+    // ----------------------------------------------
     const dx = x2 - x1;
     const dy = y2 - y1;
     const distance = Math.sqrt(dx * dx + dy * dy);
@@ -284,15 +357,17 @@ export function Canvas({
             onConnectionStart={handleConnectionStart}
             onShowProperties={() => onShowProperties(node.id)}
             onDelete={() => onNodeDelete(node.id)}
+            onDoubleClick={() => onNodeDoubleClick(node.id)}
+            status={nodeStates[node.id]?.status || 'unknown'}
             zoom={zoom}
           />
         ))}
 
         {/* SVG para las conexiones - encima de los nodos */}
-        <svg 
-          className="absolute inset-0 pointer-events-none" 
-          style={{ 
-            width: '4000px', 
+        <svg
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            width: '4000px',
             height: '4000px',
             overflow: 'visible',
             zIndex: 100
@@ -301,10 +376,10 @@ export function Canvas({
           <defs>
             {/* Filtro de sombra suave para conexiones */}
             <filter id="connection-glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+              <feGaussianBlur stdDeviation="2" result="coloredBlur" />
               <feMerge>
-                <feMergeNode in="coloredBlur"/>
-                <feMergeNode in="SourceGraphic"/>
+                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
           </defs>
@@ -312,15 +387,15 @@ export function Canvas({
           {connections.map((conn) => {
             const source = nodes.find(n => n.id === conn.source);
             const target = nodes.find(n => n.id === conn.target);
-            
+
             if (!source || !target) return null;
-            
+
             const anchors = getNodeAnchorPoint(source, target, conn.sourcePort, conn.targetPort);
             const x1 = anchors.source.x * zoom;
             const y1 = anchors.source.y * zoom;
             const x2 = anchors.target.x * zoom;
             const y2 = anchors.target.y * zoom;
-            
+
             const path = createCurvePath(x1, y1, x2, y2);
             const isDeleteMode = mode === 'delete';
 
@@ -329,7 +404,7 @@ export function Canvas({
             const midY = (y1 + y2) / 2;
 
             return (
-              <g 
+              <g
                 key={conn.id}
                 className="pointer-events-auto cursor-pointer"
                 onClick={(e) => handleConnectionClick(conn.id, e as any)}
@@ -345,7 +420,7 @@ export function Canvas({
                   opacity="1"
                   style={{ strokeOpacity: 1 }}
                 />
-                
+
                 {/* Punto de control visible en el medio */}
                 <circle
                   cx={midX}
@@ -354,10 +429,18 @@ export function Canvas({
                   fill={isDeleteMode ? '#ef4444' : '#3B82F6'}
                   stroke="#1a1a1a"
                   strokeWidth="2"
-                  className="hover:scale-110 transition-transform"
-                  style={{ cursor: 'pointer', fillOpacity: 1, strokeOpacity: 1 }}
+                  className="hover:scale-125 transition-transform" // Aumenté un poco la escala para mejor feedback
+                  style={{
+                    cursor: 'pointer',
+                    fillOpacity: 1,
+                    strokeOpacity: 1,
+                    // --- FIX: Anclaje de animación ---
+                    transformBox: 'fill-box',
+                    transformOrigin: 'center'
+                    // --------------------------------
+                  }}
                 />
-                
+
                 {/* Puntos de anclaje en los extremos */}
                 <circle
                   cx={x1}

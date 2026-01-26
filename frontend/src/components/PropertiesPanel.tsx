@@ -1,7 +1,10 @@
+// frontend/src/components/PropertiesPanel.tsx
 import { DockerNode } from '../types/docker-topology';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { Input } from './ui/input';
 import { Label } from './ui/label';
+import { Checkbox } from './ui/checkbox';
+import { useEffect, useState } from 'react';
 
 interface PropertiesPanelProps {
   node: DockerNode | null;
@@ -10,72 +13,75 @@ interface PropertiesPanelProps {
 }
 
 export function PropertiesPanel({ node, onClose, onUpdate }: PropertiesPanelProps) {
-  if (!node) return null;
+  // Local state to buffer inputs and ensure responsiveness
+  const [localData, setLocalData] = useState<DockerNode['data'] | null>(null);
 
-  const updateField = (field: keyof DockerNode['data'], value: any) => {
+  // Sync local state when the selected node changes
+  useEffect(() => {
+    if (node) {
+      setLocalData(node.data);
+    } else {
+      setLocalData(null);
+    }
+  }, [node?.id, node?.data]); // Sync on ID change or external data update
+
+  if (!node || !localData) return null;
+
+  const pushUpdate = (newData: DockerNode['data']) => {
+    setLocalData(newData); // Update local UI immediately
     onUpdate({
       ...node,
-      data: {
-        ...node.data,
-        [field]: value
-      }
+      data: newData
     });
   };
 
+  const updateField = (field: keyof DockerNode['data'], value: any) => {
+    const newData = { ...localData, [field]: value };
+    pushUpdate(newData);
+  };
+
   const addPort = () => {
-    updateField('ports', [...node.data.ports, '']);
+    updateField('ports', [...localData.ports, '']);
   };
 
   const updatePort = (index: number, value: string) => {
-    const newPorts = [...node.data.ports];
+    const newPorts = [...localData.ports];
     newPorts[index] = value;
     updateField('ports', newPorts);
   };
 
   const removePort = (index: number) => {
-    updateField('ports', node.data.ports.filter((_, i) => i !== index));
+    updateField('ports', localData.ports.filter((_, i) => i !== index));
   };
 
-  const addNetwork = () => {
-    updateField('networks', [...node.data.networks, '']);
-  };
 
-  const updateNetwork = (index: number, value: string) => {
-    const newNetworks = [...node.data.networks];
-    newNetworks[index] = value;
-    updateField('networks', newNetworks);
-  };
-
-  const removeNetwork = (index: number) => {
-    updateField('networks', node.data.networks.filter((_, i) => i !== index));
-  };
 
   const addEnvVar = () => {
-    updateField('envVars', [...node.data.envVars, { key: '', value: '' }]);
+    updateField('envVars', [...localData.envVars, { key: '', value: '' }]);
   };
 
   const updateEnvVar = (index: number, field: 'key' | 'value', value: string) => {
-    const newEnvVars = [...node.data.envVars];
+    const newEnvVars = [...localData.envVars];
     newEnvVars[index] = { ...newEnvVars[index], [field]: value };
     updateField('envVars', newEnvVars);
   };
 
   const removeEnvVar = (index: number) => {
-    updateField('envVars', node.data.envVars.filter((_, i) => i !== index));
+    updateField('envVars', localData.envVars.filter((_, i) => i !== index));
   };
 
   const addVolume = () => {
-    updateField('volumes', [...node.data.volumes, '']);
+    updateField('volumes', [...localData.volumes, '']);
   };
 
   const updateVolume = (index: number, value: string) => {
-    const newVolumes = [...node.data.volumes];
+    const newVolumes = [...localData.volumes];
     newVolumes[index] = value;
     updateField('volumes', newVolumes);
   };
 
   const removeVolume = (index: number) => {
-    updateField('volumes', node.data.volumes.filter((_, i) => i !== index));
+    updateField('volumes', localData.volumes.filter((_, i) => i !== index));
   };
 
   return (
@@ -94,8 +100,18 @@ export function PropertiesPanel({ node, onClose, onUpdate }: PropertiesPanelProp
         <div className="space-y-2">
           <Label className="text-[#222222]">Nombre del nodo</Label>
           <Input
-            value={node.data.name}
+            value={localData.name}
             onChange={(e) => updateField('name', e.target.value)}
+            className="bg-white border-[#D1D5DB] text-[#222222]"
+          />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-[#222222]">Nombre del Contenedor (Host)</Label>
+          <Input
+            value={localData.containerName || ''}
+            onChange={(e) => updateField('containerName', e.target.value)}
+            placeholder="ej: kali_attacker"
             className="bg-white border-[#D1D5DB] text-[#222222]"
           />
         </div>
@@ -103,10 +119,58 @@ export function PropertiesPanel({ node, onClose, onUpdate }: PropertiesPanelProp
         <div className="space-y-2">
           <Label className="text-[#222222]">Imagen Docker</Label>
           <Input
-            value={node.data.dockerImage}
+            value={localData.dockerImage}
             onChange={(e) => updateField('dockerImage', e.target.value)}
             className="bg-white border-[#D1D5DB] text-[#222222]"
           />
+        </div>
+
+        <div className="space-y-3 pt-2 pb-2 border-t border-b border-[#E5E5E5]">
+          <Label className="text-[#222222] font-medium">Configuración Avanzada / Ejecución</Label>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="tty-mode"
+              checked={!!localData.tty}
+              onCheckedChange={(checked: boolean | 'indeterminate') => updateField('tty', checked === true)}
+            />
+            <Label htmlFor="tty-mode" className="text-[#222222] cursor-pointer">
+              Pseudo-TTY (-t)
+            </Label>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="stdin-mode"
+              checked={!!localData.stdinOpen}
+              onCheckedChange={(checked: boolean | 'indeterminate') => updateField('stdinOpen', checked === true)}
+            />
+            <Label htmlFor="stdin-mode" className="text-[#222222] cursor-pointer">
+              Interactivo / Mantener Vivo (-i)
+            </Label>
+          </div>
+
+          <div className="flex items-center space-x-2 pb-4 border-b border-[#E5E5E5]">
+            <Checkbox
+              id="privileged-mode"
+              checked={!!localData.privileged}
+              onCheckedChange={(checked: boolean | 'indeterminate') => updateField('privileged', checked === true)}
+            />
+            <Label htmlFor="privileged-mode" className="text-[#222222] cursor-pointer text-red-600 font-medium">
+              Modo Privilegiado (DANGER)
+            </Label>
+          </div>
+
+          <div className="space-y-2 pt-4">
+            <Label className="text-[#222222]">Comando de Inicio (Opcional)</Label>
+            <Input
+              value={localData.command || ''}
+              onChange={(e) => updateField('command', e.target.value)}
+              placeholder='ej: sh -c "/bin/services.sh && bash"'
+              className="bg-white border-[#D1D5DB] text-[#222222] font-mono text-xs"
+            />
+            <p className="text-[10px] text-gray-500">Sobrescribe el CMD por defecto de la imagen.</p>
+          </div>
         </div>
 
         <div className="space-y-2">
@@ -120,7 +184,7 @@ export function PropertiesPanel({ node, onClose, onUpdate }: PropertiesPanelProp
             </button>
           </div>
           <div className="space-y-2">
-            {node.data.ports.map((port, idx) => (
+            {localData.ports.map((port, idx) => (
               <div key={idx} className="flex gap-2">
                 <Input
                   value={port}
@@ -139,35 +203,7 @@ export function PropertiesPanel({ node, onClose, onUpdate }: PropertiesPanelProp
           </div>
         </div>
 
-        <div className="space-y-2">
-          <div className="flex items-center justify-between">
-            <Label className="text-[#222222]">Redes</Label>
-            <button
-              onClick={addNetwork}
-              className="p-1 rounded hover:bg-[#E0E0E0] text-blue-600 hover:text-blue-700 transition-colors"
-            >
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="space-y-2">
-            {node.data.networks.map((network, idx) => (
-              <div key={idx} className="flex gap-2">
-                <Input
-                  value={network}
-                  onChange={(e) => updateNetwork(idx, e.target.value)}
-                  placeholder="network-name"
-                  className="bg-white border-[#D1D5DB] text-[#222222] flex-1"
-                />
-                <button
-                  onClick={() => removeNetwork(idx)}
-                  className="p-2 rounded hover:bg-[#E0E0E0] text-red-600 hover:text-red-700 transition-colors"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
+
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
@@ -180,7 +216,7 @@ export function PropertiesPanel({ node, onClose, onUpdate }: PropertiesPanelProp
             </button>
           </div>
           <div className="space-y-2">
-            {node.data.envVars.map((envVar, idx) => (
+            {localData.envVars.map((envVar, idx) => (
               <div key={idx} className="space-y-1">
                 <div className="flex gap-2">
                   <Input
@@ -218,7 +254,7 @@ export function PropertiesPanel({ node, onClose, onUpdate }: PropertiesPanelProp
             </button>
           </div>
           <div className="space-y-2">
-            {node.data.volumes.map((volume, idx) => (
+            {localData.volumes.map((volume, idx) => (
               <div key={idx} className="flex gap-2">
                 <Input
                   value={volume}

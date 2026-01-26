@@ -32,5 +32,9 @@
       "app/**/*",
       "frontend/dist/**/*"
     ]
+  },
+  "dependencies": {
+    "dockerode": "^4.0.9",
+    "js-yaml": "^4.1.1"
   }
 }

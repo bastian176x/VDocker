@@ -1,3 +1,4 @@
+// frontend/src/components/NodeComponent.tsxs
 import { useState } from 'react';
 import { Server, Router, Shield, Database, Globe, User, Bug, MoreVertical, FileText, Trash2 } from 'lucide-react';
 import { DockerNode, NodeType, PortPosition } from '../types/docker-topology';
@@ -20,18 +21,41 @@ interface NodeComponentProps {
   onConnectionStart?: (nodeId: string, port: PortPosition) => void;
   onShowProperties?: () => void;
   onDelete?: () => void;
+  onDoubleClick?: () => void;
+  status: string; // Nueva prop
   zoom: number;
 }
 
-export function NodeComponent({ 
-  node, 
-  isSelected, 
-  onClick, 
+// Helper para estilos de estado (Posición, Color, Animación)
+const getStatusStyles = (status: string) => {
+  // CORRECCIÓN AQUÍ: Fíjate que ahora dice '-left-2' en lugar de '-right-2'
+  const baseStyles = "absolute -top-2 -left-2 w-4 h-4 rounded-full border-2 border-white z-20 transition-all duration-500";
+
+  switch (status.toLowerCase()) {
+    case 'running':
+      return `${baseStyles} bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-pulse`;
+    case 'exited':
+    case 'dead':
+      return `${baseStyles} bg-red-500 shadow-sm grayscale-[30%]`;
+    case 'restarting':
+    case 'created':
+      return `${baseStyles} bg-yellow-400 shadow-[0_0_10px_rgba(250,204,21,0.8)] animate-ping`;
+    default:
+      return `${baseStyles} bg-gray-300 opacity-50`;
+  }
+};
+
+export function NodeComponent({
+  node,
+  isSelected,
+  onClick,
   onDragStart,
   onConnectionStart,
   onShowProperties,
   onDelete,
-  zoom 
+  onDoubleClick,
+  status,
+  zoom
 }: NodeComponentProps) {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -67,6 +91,10 @@ export function NodeComponent({
     <div
       draggable
       onDragStart={onDragStart}
+      onDoubleClick={(e) => {
+        e.stopPropagation(); // Detener propagación
+        if (onDoubleClick) onDoubleClick();
+      }}
       onClick={onClick}
       style={{
         position: 'absolute',
@@ -76,12 +104,29 @@ export function NodeComponent({
         minHeight: 100 * zoom,
         boxShadow: isSelected ? '0 10px 40px rgba(59, 130, 246, 0.3)' : '0 2px 8px rgba(0, 0, 0, 0.06)'
       }}
-      className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all cursor-move backdrop-blur-sm ${
-        isSelected
-          ? 'bg-white border-blue-500 shadow-xl shadow-blue-500/30'
-          : 'bg-white border-[#C7C7C7] hover:border-[#9CA3AF] hover:shadow-lg'
-      }`}
+      className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all cursor-move backdrop-blur-sm ${isSelected
+        ? 'bg-white border-blue-500 shadow-xl shadow-blue-500/30'
+        : 'bg-white border-[#C7C7C7] hover:border-[#9CA3AF] hover:shadow-lg'
+        }`}
     >
+      {/* --- NUEVO: Indicador de Estado (Posicionamiento Forzado) --- */}
+      {status && (
+        <div
+          title={`Estado: ${status}`}
+          className={`absolute w-4 h-4 rounded-full border-2 border-white z-50 transition-all duration-500 ${status === 'running' ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.8)] animate-pulse' :
+              (status === 'exited' || status === 'dead') ? 'bg-red-500 grayscale-[30%]' :
+                'bg-yellow-400 animate-ping'
+            }`}
+          style={{
+            // FORZAMOS la posición con estilos directos para evitar problemas de Tailwind
+            top: '-8px',
+            left: '-8px',
+            position: 'absolute'
+          }}
+        />
+      )}
+      {/* ----------------------------------------------------------- */}
+
       {/* Puntos de anclaje en los bordes cuando está seleccionado */}
       {isSelected && (
         <>
