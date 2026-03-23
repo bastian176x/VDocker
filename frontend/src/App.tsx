@@ -1,7 +1,8 @@
-//App.tsx
+// frontend/src/App.tsx
 import { useState, useEffect } from 'react';
-import { Play, Save, Upload, Square, FileText, Trash } from 'lucide-react';
+import { Play, Save, Upload, Square, Trash, Terminal, XCircle } from 'lucide-react';
 import { NodePalette } from './components/NodePalette';
+import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Toolbar } from './components/Toolbar';
 import { Canvas } from './components/Canvas';
 import { PropertiesPanel } from './components/PropertiesPanel';
@@ -20,38 +21,7 @@ import { Button } from './components/ui/button';
 
 function App() {
   const [nodes, setNodes] = useState<DockerNode[]>([
-    {
-      id: 'node-kali',
-      type: 'client',
-      position: { x: 200, y: 200 },
-      data: {
-        name: 'kali-linux',
-        containerName: 'kali_attacker',
-        dockerImage: 'kalilinux/kali-rolling',
-        tty: true,
-        stdinOpen: true,
-        ports: [],
-        networks: ['lab-net'],
-        envVars: [],
-        volumes: []
-      }
-    },
-    {
-      id: 'node-metasploitable',
-      type: 'vulnerable-service',
-      position: { x: 500, y: 200 },
-      data: {
-        name: 'metasploitable-target',
-        containerName: 'metasploitable_victim',
-        dockerImage: 'tleemcjr/metasploitable2',
-        tty: true,
-        stdinOpen: true,
-        ports: ['21:21', '22:22', '80:80'],
-        networks: ['lab-net'],
-        envVars: [],
-        volumes: []
-      }
-    }
+
   ]);
 
   const [connections, setConnections] = useState<Connection[]>([]);
@@ -62,23 +32,38 @@ function App() {
   const [zoom, setZoom] = useState(1);
   const [isDraggingNode, setIsDraggingNode] = useState(false);
   const [isRunning, setIsRunning] = useState(false);
-  const [showImportModal, setShowImportModal] = useState(false);
   const [showDockerError, setShowDockerError] = useState(false);
   const [systemStatus, setSystemStatus] = useState<'ready' | 'running' | 'stopped'>('ready');
   // Mapa de estados: NodeID -> { status: string, containerId: string }
   const [nodeStates, setNodeStates] = useState<Record<string, { status: string; containerId: string }>>({});
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
+  const [logs, setLogs] = useState<{ time: string, message: string, isContainerLog?: boolean }[]>([]);
+  const [showLogs, setShowLogs] = useState(true);
 
   useEffect(() => {
-    // Escuchar progreso de Docker
     // @ts-ignore
-    const removeListener = window.electronAPI.onDockerProgress((event, data) => {
+    const removeProgressListener = window.electronAPI.onDockerProgress((event, data) => {
       setLoadingMessage(data.message);
+      setLogs(prev => [...prev, { time: new Date().toLocaleTimeString('es-CL', { hour12: false }), message: data.message }].slice(-500));
+    });
+
+    // @ts-ignore
+    const removeLogListener = window.electronAPI.onDockerLog((event, data) => {
+
+      // Filtro mágico que detecta y borra los códigos ANSI de la terminal
+      const cleanMessage = data.message.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+
+      setLogs(prev => [...prev, {
+        time: new Date().toLocaleTimeString('es-CL', { hour12: false }),
+        message: cleanMessage,
+        isContainerLog: true
+      }].slice(-500));
     });
 
     return () => {
-      if (removeListener) removeListener(); // Limpieza si aplica, o ignorar
+      if (removeProgressListener) removeProgressListener();
+      if (removeLogListener) removeLogListener();
     };
   }, []);
 
@@ -120,6 +105,14 @@ function App() {
   const selectedNode = nodes.find(n => n.id === propertiesPanelNodeId) || null;
 
   const handleNodeAdd = (node: DockerNode) => {
+    // --- SEGURIDAD: Bloquear agregar nodos en ejecución ---
+    if (isRunning) {
+      toast.warning('No puedes agregar nodos mientras el laboratorio está corriendo.', {
+        description: 'Detén el sistema primero.'
+      });
+      return;
+    }
+    // ----------------------------------------------------
     setNodes([...nodes, node]);
   };
 
@@ -132,7 +125,7 @@ function App() {
   const handleNodeDelete = (nodeId: string) => {
     // --- SEGURIDAD: Bloquear eliminación en ejecución ---
     if (isRunning) {
-      toast.warning('⛔ No puedes eliminar nodos mientras el laboratorio está corriendo.', {
+      toast.warning('No puedes eliminar nodos mientras el laboratorio está corriendo.', {
         description: 'Detén el sistema (Stop) antes de modificar la topología.'
       });
       return;
@@ -174,7 +167,7 @@ function App() {
   const handleConnectionDelete = (connectionId: string) => {
     // --- SEGURIDAD: Bloquear eliminación en ejecución ---
     if (isRunning) {
-      toast.warning('⛔ No puedes cortar cables mientras hay tráfico.', {
+      toast.warning('No puedes cortar cables mientras hay tráfico.', {
         description: 'Detén el sistema primero.'
       });
       return;
@@ -330,17 +323,93 @@ function App() {
     }
   };
 
-  const handleSave = () => {
-    toast.success('✔ Topología guardada correctamente');
+  const handleSave = async () => {
+    // Construimos el objeto de guardado limpio (Sin rutas absolutas)
+    const projectFile = {
+      version: "1.0.0",
+      metadata: {
+        fechaCreacion: Date.now(),
+        app: "Antigravity Editor",
+        descripcion: "Laboratorio de Topología Docker"
+      },
+      configuracion: {
+        zoom: zoom,
+        pan: { x: 0, y: 0 } // Por ahora guardamos el origen
+      },
+      topologia: {
+        nodes: nodes,
+        connections: connections
+      }
+    };
+
+    try {
+      // @ts-ignore
+      const response = await window.electronAPI.saveProject(projectFile);
+
+      if (response.success) {
+        toast.success('Proyecto guardado exitosamente', {
+          description: `Ubicación: ${response.filePath}`
+        });
+      } else if (response.error) {
+        toast.error('Error al guardar', { description: response.error });
+      }
+    } catch (error: any) {
+      toast.error('Error inesperado', { description: error.message });
+    }
   };
 
-  const handleImport = () => {
-    setShowImportModal(true);
-  };
+  const handleLoadProject = async () => {
+    // 1. Seguridad: Preguntar si quiere perder cambios actuales
+    if (nodes.length > 0 && !confirm('¿Deseas abrir otro proyecto? Se perderán los cambios no guardados del actual.')) {
+      return;
+    }
 
-  const handleImportFile = () => {
-    setShowImportModal(false);
-    toast.success('✔ Archivo importado con éxito');
+    // 2. Seguridad: No cargar mientras corre Docker
+    if (isRunning) {
+      toast.error('Debes detener el laboratorio antes de cargar uno nuevo.');
+      return;
+    }
+
+    try {
+      // @ts-ignore
+      const response = await window.electronAPI.loadProject();
+
+      if (response.success && response.data) {
+        const fileData = response.data;
+
+        // --- LÓGICA DE HIDRATACIÓN DEL ESTADO ---
+        let loadedNodes: DockerNode[] = [];
+        let loadedConnections: Connection[] = [];
+        let loadedZoom = 1;
+
+        // Soporte para estructura nueva (v1.0) y legacy
+        if (fileData.topologia) {
+          loadedNodes = fileData.topologia.nodes || [];
+          loadedConnections = fileData.topologia.connections || [];
+          loadedZoom = fileData.configuracion?.zoom || 1;
+        } else if (fileData.nodes) {
+          // Fallback para archivos viejos si los hubiera
+          loadedNodes = fileData.nodes;
+          loadedConnections = fileData.connections || [];
+        } else {
+          throw new Error('Formato de archivo no reconocido');
+        }
+
+        // Actualizar React State
+        setNodes(loadedNodes);
+        setConnections(loadedConnections);
+        setZoom(loadedZoom);
+
+        // Resetear estados de ejecución (limpiar "fantasmas" visuales)
+        setNodeStates({});
+        setSystemStatus('ready');
+        setIsRunning(false);
+
+        toast.success('Proyecto cargado correctamente');
+      }
+    } catch (error: any) {
+      toast.error('Error al abrir proyecto', { description: error.message });
+    }
   };
 
   const handleNodeDoubleClick = async (nodeId: string) => {
@@ -358,8 +427,10 @@ function App() {
       return;
     }
 
-    // 3. Ejecutar
+    // 3. Ejecutar terminal nativa externa
     toast.info(`Abriendo terminal...`);
+
+    // @ts-ignore
     await window.electronAPI.openTerminal(state.containerId);
   };
 
@@ -373,7 +444,7 @@ function App() {
           <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
             <span className="text-white">🐳</span>
           </div>
-          <h1 className="text-[#222222]">Docker Topology Editor</h1>
+          <h1 className="text-[#222222]">VDocker</h1>
         </div>
 
         <div className="flex items-center gap-2">
@@ -387,14 +458,14 @@ function App() {
             <span>Guardar</span>
           </button>
 
-          {/* Botón Importar */}
+          {/* Botón Abrir */}
           <button
-            onClick={handleImport}
+            onClick={handleLoadProject}
             className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 text-[#222222] rounded-lg transition-colors border border-[#D1D5DB]"
-            title="Importar archivo"
+            title="Abrir Proyecto"
           >
             <Upload className="w-4 h-4" />
-            <span>Importar</span>
+            <span>Abrir</span>
           </button>
 
           {/* Botón PLAY / Ejecutar */}
@@ -404,7 +475,7 @@ function App() {
             className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Play className="w-4 h-4" />
-            <span>PLAY / Ejecutar</span>
+            <span>PLAY</span>
           </button>
 
           {/* Botón Detener */}
@@ -433,36 +504,70 @@ function App() {
         {/* Left Panel - Node Palette */}
         <NodePalette onNodeDragStart={() => setIsDraggingNode(true)} />
 
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* Toolbar */}
-          <Toolbar
-            mode={mode}
-            onModeChange={setMode}
-            onZoomIn={() => { }}
-            onZoomOut={() => { }}
-            onResetView={() => { }}
-          />
+        {/* Main Content con Paneles Redimensionables */}
+        <PanelGroup direction="vertical" className="flex-1 flex flex-col overflow-hidden border-r border-[#E5E5E5]">
 
-          {/* Canvas */}
-          <Canvas
-            nodes={nodes}
-            connections={connections}
-            selectedNodeId={selectedNodeId}
-            onNodeSelect={setSelectedNodeId}
-            onNodeAdd={handleNodeAdd}
-            onNodeMove={handleNodeMove}
-            onNodeDelete={handleNodeDelete}
-            onConnectionAdd={handleConnectionAdd}
-            onConnectionDelete={handleConnectionDelete}
-            onShowProperties={handleShowProperties}
-            onNodeDoubleClick={handleNodeDoubleClick}
-            nodeStates={nodeStates}
-            mode={mode}
-            zoom={zoom}
-            onZoomChange={setZoom}
-          />
-        </div>
+          {/* PANEL SUPERIOR (Canvas) */}
+          <Panel defaultSize={75} minSize={30} className="flex flex-col relative">
+            <Toolbar mode={mode} onModeChange={setMode} onZoomIn={() => { }} onZoomOut={() => { }} onResetView={() => { }} />
+            <Canvas
+              nodes={nodes} connections={connections} selectedNodeId={selectedNodeId}
+              onNodeSelect={setSelectedNodeId} onNodeAdd={handleNodeAdd} onNodeMove={handleNodeMove}
+              onNodeDelete={handleNodeDelete} onConnectionAdd={handleConnectionAdd} onConnectionDelete={handleConnectionDelete}
+              onShowProperties={handleShowProperties} onNodeDoubleClick={handleNodeDoubleClick}
+              nodeStates={nodeStates} mode={mode} zoom={zoom} onZoomChange={setZoom}
+            />
+          </Panel>
+
+          {/* MANIJA PARA ARRASTRAR */}
+          {showLogs && (
+            <PanelResizeHandle className="h-1.5 bg-[#E5E5E5] hover:bg-[#3B82F6] transition-colors cursor-row-resize flex items-center justify-center">
+              <div className="w-8 h-1 bg-gray-400 rounded-full" />
+            </PanelResizeHandle>
+          )}
+
+          {/* PANEL INFERIOR (Consola de Logs) */}
+          {showLogs && (
+            <Panel defaultSize={25} minSize={15} className="bg-[#1E1E1E] flex flex-col z-10 shadow-inner">
+              <div className="h-8 bg-[#2D2D2D] flex items-center justify-between px-4 border-b border-[#3D3D3D] shrink-0">
+                <div className="flex items-center gap-2 text-gray-300 text-xs font-semibold uppercase tracking-wider">
+                  <Terminal className="w-4 h-4" />
+                  Salida de Docker
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={() => setLogs([])} className="text-gray-400 hover:text-white transition-colors" title="Limpiar consola">
+                    <Trash className="w-3.5 h-3.5" />
+                  </button>
+                  <button onClick={() => setShowLogs(false)} className="text-gray-400 hover:text-red-400 transition-colors" title="Cerrar panel">
+                    <XCircle className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-3 font-mono text-[11px] text-[#A3BE8C] space-y-1">
+                {logs.length === 0 ? (
+                  <div className="text-gray-500 italic flex items-center justify-center h-full">Esperando eventos del motor Docker...</div>
+                ) : (
+                  logs.map((log, i) => (
+                    <div key={i} className="hover:bg-[#2D2D2D] px-1.5 py-0.5 rounded break-all">
+                      <span className="text-[#88C0D0] mr-3 opacity-70">[{log.time}]</span>
+                      <span className={
+                        log.message.toLowerCase().includes('error') || log.message.toLowerCase().includes('fail')
+                          ? 'text-[#BF616A] font-bold'
+                          : log.isContainerLog
+                            ? 'text-[#EBCB8B]' // Color amarillento/dorado para logs de contenedores
+                            : 'text-[#A3BE8C]' // Verde para mensajes de sistema
+                      }>
+                        {log.message}
+                      </span>
+                    </div>
+                  ))
+                )}
+                <div ref={(el) => { el?.scrollIntoView({ behavior: 'smooth' }) }} />
+              </div>
+            </Panel>
+          )}
+        </PanelGroup>
 
         {/* Right Panel - Properties */}
         {selectedNode && (
@@ -490,47 +595,20 @@ function App() {
             </span>
           </span>
         </div>
-        <div>
-          Zoom: {(zoom * 100).toFixed(0)}%
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className={`flex items-center gap-1.5 px-2 py-1 rounded transition-colors ${showLogs ? 'bg-gray-200 text-[#222222]' : 'hover:bg-gray-100 text-[#6B7280]'}`}
+            title="Alternar Consola de Logs"
+          >
+            <Terminal className="w-3.5 h-3.5" />
+            <span>Consola</span>
+          </button>
+          <span>Zoom: {(zoom * 100).toFixed(0)}%</span>
         </div>
       </div>
 
-      {/* Modal de Importar */}
-      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
-        <DialogContent className="bg-white border-[#E5E5E5] text-[#222222]">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-[#222222]">
-              <FileText className="w-5 h-5 text-blue-600" />
-              Importar archivo docker-compose.yml
-            </DialogTitle>
-            <DialogDescription className="text-[#6B7280]">
-              Selecciona un archivo docker-compose.yml para importar la topología de contenedores a tu editor.
-            </DialogDescription>
-          </DialogHeader>
 
-          <div className="flex flex-col items-center justify-center py-8 border-2 border-dashed border-[#D1D5DB] rounded-lg bg-[#F9FAFB]">
-            <FileText className="w-16 h-16 text-blue-600 mb-4" />
-            <p className="text-[#6B7280] mb-2">Arrastra tu archivo aquí o haz clic para seleccionar</p>
-            <p className="text-xs text-[#9CA3AF]">Archivos soportados: .yml, .yaml</p>
-          </div>
-
-          <DialogFooter className="gap-2">
-            <Button
-              variant="outline"
-              onClick={() => setShowImportModal(false)}
-              className="bg-white border-[#D1D5DB] text-[#222222] hover:bg-gray-50 hover:text-[#222222]"
-            >
-              Cancelar
-            </Button>
-            <Button
-              onClick={handleImportFile}
-              className="bg-blue-600 hover:bg-blue-700 text-white"
-            >
-              Seleccionar archivo
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Alerta de Docker Apagado */}
       <Dialog open={showDockerError} onOpenChange={setShowDockerError}>
@@ -542,7 +620,7 @@ function App() {
             <DialogDescription className="text-gray-600 pt-2 text-base">
               No pudimos conectar con el motor de Docker.
               <br /><br />
-              Por favor, <strong>abre la aplicación Docker Desktop</strong> y espera a que el icono de la ballena se ponga en verde antes de intentar ejecutar el laboratorio.
+              Por favor, <strong>abre la aplicación Docker Desktop</strong> y espera antes de intentar ejecutar el laboratorio.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -1,10 +1,11 @@
 {
   "name": "my-electron-app",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "main": "app/main.js",
   "description": "Mi aplicación Electron",
   "author": "Basti",
   "scripts": {
+    "test": "jest",
     "dev": "concurrently -k \"npm:dev-frontend\" \"npm:dev-electron\"",
     "dev-frontend": "cd frontend && npm run dev",
     "dev-electron": "wait-on http://localhost:3000 && electron .",
@@ -16,17 +17,19 @@
     "concurrently": "^8.2.2",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
+    "jest": "^30.3.0",
     "wait-on": "^7.2.0"
   },
   "build": {
     "appId": "com.miapp.app",
-    "productName": "MiAplicacion",
+    "productName": "VDocker",
     "forceCodeSigning": false,
     "directories": {
       "output": "dist"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     },
     "files": [
       "app/**/*",
@@ -34,6 +37,7 @@
     ]
   },
   "dependencies": {
+    "adm-zip": "^0.5.16",
     "dockerode": "^4.0.9",
     "js-yaml": "^4.1.1"
   }

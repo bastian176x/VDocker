@@ -1,0 +1,35 @@
+name: Integración Continua VDocker
+
+# 1. ¿Cuándo se ejecuta este robot?
+# Cada vez que Bastián haga un 'push' o un 'pull request' a la rama main o master
+on:
+  push:
+    branches: [ "main", "master" ]
+  pull_request:
+    branches: [ "main", "master" ]
+
+# 2. ¿Qué va a hacer el robot?
+jobs:
+  test:
+    name: Ejecutar Pruebas Unitarias
+    # Levanta un servidor virtual limpio con la última versión de Ubuntu Linux
+    runs-on: ubuntu-latest
+
+    steps:
+    # A. Descargar el código del repositorio al servidor virtual
+    - name: Descargar código fuente
+      uses: actions/checkout@v4
+
+    # B. Instalar Node.js para que el código pueda funcionar
+    - name: Configurar Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20' # Usamos una versión estable y moderna
+
+    # C. Instalar Jest y todas las librerías que están en package.json
+    - name: Instalar dependencias
+      run: npm install
+
+    # D. Ejecuta el mismo comando que usaste en tu PC
+    - name: Ejecutar Tests (Métrica M2)
+      run: npm test

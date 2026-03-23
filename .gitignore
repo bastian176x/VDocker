@@ -111,3 +111,5 @@ app/filesystem/cache/
 # Si tu app guarda topologías generadas por el usuario
 app/topology/generated/
 
+# Reportes de pruebas unitarias (Jest)
+coverage/

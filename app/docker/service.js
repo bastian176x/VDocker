@@ -4,6 +4,51 @@ const util = require('util');
 const { exec, spawn } = require('child_process');
 const execPromise = util.promisify(exec);
 
+let logsProcess = null;
+const activeTerminals = {};
+
+async function attachTerminal(containerId, onData) {
+    try {
+        const container = docker.getContainer(containerId);
+        const info = await container.inspect();
+        const isAlpine = info.Config.Image.toLowerCase().includes('alpine');
+        const shellCommand = isAlpine ? '/bin/sh' : '/bin/bash';
+
+        const exec = await container.exec({
+            Cmd: [shellCommand],
+            Env: ['TERM=xterm-256color', 'LANG=C.UTF-8'], // NUEVO: Mejora compatibilidad
+            AttachStdin: true, AttachStdout: true, AttachStderr: true,
+            Tty: true
+        });
+
+        const stream = await exec.start({ hijack: true, stdin: true });
+
+        stream.on('data', (chunk) => {
+            onData(chunk.toString('utf8'));
+        });
+
+        activeTerminals[containerId] = stream;
+        return { success: true };
+    } catch (error) {
+        console.error('Error attaching terminal:', error);
+        return { success: false, error: error.message };
+    }
+}
+
+function writeTerminal(containerId, data) {
+    if (activeTerminals[containerId]) {
+        // Enviar como Buffer de utf-8 evita que \r se corrompa en el IPC
+        activeTerminals[containerId].write(Buffer.from(data, 'utf-8'));
+    }
+}
+
+function stopTerminal(containerId) {
+    if (activeTerminals[containerId]) {
+        activeTerminals[containerId].end();
+        delete activeTerminals[containerId];
+    }
+}
+
 /**
  * Verifica Docker y ejecuta el archivo Compose con estrategia Smart Update.
  * @param {string} filePath - Ruta absoluta al docker-compose.yml
@@ -71,8 +116,13 @@ async function stopLab(filePath, onProgress) {
 
         if (onProgress) onProgress('Iniciando secuencia de apagado...');
 
+        if (logsProcess) {
+            logsProcess.kill();
+            logsProcess = null;
+        }
+
         // Usamos spawn para capturar el output en vivo
-        const child = spawn('docker', ['compose', '-f', filePath, 'down', '--remove-orphans']);
+        const child = spawn('docker', ['compose', '-f', filePath, 'stop']);
 
         // Docker Compose envía el progreso por stderr
         child.stderr.on('data', (data) => {
@@ -173,24 +223,42 @@ async function openTerminal(containerId) {
 
 
 /**
- * Descarga las imágenes necesarias reportando progreso.
- * @param {string[]} images - Lista de imágenes (ej: ['ubuntu:latest', 'postgres:alpine'])
- * @param {function} onProgress - Callback para enviar estado (mensaje, porcentaje)
+ * Descarga imágenes solo si no existen localmente (Smart Pull).
  */
 async function pullImages(images, onProgress) {
-    // Eliminamos duplicados
     const uniqueImages = [...new Set(images)];
 
     for (const [index, image] of uniqueImages.entries()) {
-        try {
-            const stepPrefix = `[${index + 1}/${uniqueImages.length}]`;
-            onProgress(`${stepPrefix} Buscando imagen: ${image}...`, 0);
+        const stepPrefix = `[${index + 1}/${uniqueImages.length}]`;
 
-            // Dockerode pull retorna un stream
+        try {
+            // 1. ESTRATEGIA LOCAL-FIRST: Verificamos si ya existe
+            // Si la imagen tiene tag (ej: :latest), lo respetamos.
+            const localImage = docker.getImage(image);
+            await localImage.inspect();
+
+            // Si llegamos aquí, la imagen existe. Saltamos.
+            console.log(`✅ Imagen encontrada localmente: ${image}`);
+            if (onProgress) onProgress(`${stepPrefix} Imagen lista en caché: ${image}`, 100);
+
+            // Pequeña pausa artificial para que el usuario lea el mensaje (opcional, 500ms)
+            await new Promise(r => setTimeout(r, 500));
+            continue;
+
+        } catch (e) {
+            // Si da error (usualmente 404 Not Found), es que no la tenemos. Descargamos.
+            if (e.statusCode !== 404) {
+                console.warn(`⚠️ Error inspeccionando imagen ${image}, intentando pull igual...`);
+            }
+        }
+
+        // 2. DESCARGA REAL (Solo si no existe)
+        try {
+            if (onProgress) onProgress(`${stepPrefix} Descargando: ${image} (Esto puede tardar)...`, 0);
+
             const stream = await docker.pull(image);
 
             await new Promise((resolve, reject) => {
-                // Usamos docker.modem.followProgress para parsear el stream de capas
                 docker.modem.followProgress(stream, onFinished, onProgressEvent);
 
                 function onFinished(err, output) {
@@ -199,23 +267,24 @@ async function pullImages(images, onProgress) {
                 }
 
                 function onProgressEvent(event) {
-                    // Calculamos un porcentaje aproximado basado en las capas
                     let status = event.status || '';
                     let progress = event.progress || '';
-
-                    if (status === 'Downloading' || status === 'Extracting') {
+                    if (status.includes('Downloading') || status.includes('Extracting') || status.includes('Pulling')) {
                         onProgress(`${stepPrefix} ${image}: ${status} ${progress}`, null);
-                        // Nota: Calcular % real global es complejo, enviamos el string de docker
-                    } else {
-                        onProgress(`${stepPrefix} ${image}: ${status}`, null);
                     }
                 }
             });
-
         } catch (error) {
             console.error(`Error descargando ${image}:`, error);
-            // No bloqueamos si falla (quizás ya está local y docker run funcione igual), 
-            // pero avisamos.
+
+            // Analizamos el mensaje de error real de Docker
+            const errMsg = error.message ? error.message.toLowerCase() : '';
+
+            if (errMsg.includes('not found') || errMsg.includes('does not exist') || errMsg.includes('manifest') || errMsg.includes('denied')) {
+                throw new Error(`La imagen '${image}' no existe en Docker Hub, está mal escrita o es privada.`);
+            } else {
+                throw new Error(`No se pudo descargar ${image}. Verifica tu conexión a internet o asegúrate de que Docker tenga acceso a la red.`);
+            }
         }
     }
 }
@@ -253,4 +322,23 @@ async function checkDaemon() {
     });
 }
 
-module.exports = { startLab, stopLab, getLabStatus, openTerminal, pullImages, pruneSystem, checkDaemon };
+function streamLabLogs(filePath, onLog) {
+    if (logsProcess) {
+        logsProcess.kill();
+        logsProcess = null;
+    }
+    // --tail=0 asegura que solo veamos los logs nuevos desde el arranque
+    logsProcess = spawn('docker', ['compose', '-f', filePath, 'logs', '-f', '--no-color', '--tail=0']);
+
+    logsProcess.stdout.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(line => line.trim());
+        lines.forEach(line => onLog(line));
+    });
+
+    logsProcess.stderr.on('data', (data) => {
+        const lines = data.toString().split('\n').filter(line => line.trim());
+        lines.forEach(line => onLog(line));
+    });
+}
+
+module.exports = { startLab, stopLab, getLabStatus, openTerminal, pullImages, pruneSystem, checkDaemon, streamLabLogs, attachTerminal, writeTerminal, stopTerminal };

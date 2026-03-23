@@ -17,6 +17,8 @@ function generateComposeYAML(nodes, connections = []) {
     const services = {};
     const networks = {};
     const usedHostPorts = new Set(); // SET para detectar colisiones
+    const usedServiceNames = new Set(); // NUEVO: Para evitar sobrescritura de nodos
+    const usedContainerNames = new Set(); // NUEVO: Para evitar conflictos en el host
 
     if (!nodes || !Array.isArray(nodes)) {
         return yaml.dump({ version, services: {} });
@@ -46,9 +48,23 @@ function generateComposeYAML(nodes, connections = []) {
         // Solo permitimos letras, números y guiones bajo.
         const safeServiceName = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
 
+        // VALIDACIÓN DE NODO DUPLICADO
+        if (usedServiceNames.has(safeServiceName)) {
+            throw new Error(`CONFLICTO CRÍTICO: El nombre de nodo "${rawName}" está duplicado. Cada nodo debe tener un nombre único.`);
+        }
+        usedServiceNames.add(safeServiceName);
+
+        const finalContainerName = node.data.containerName || `${safeServiceName}_container`;
+
+        // VALIDACIÓN DE CONTENEDOR DUPLICADO
+        if (usedContainerNames.has(finalContainerName)) {
+             throw new Error(`CONFLICTO CRÍTICO: El nombre de contenedor "${finalContainerName}" está en uso por otro nodo. Cámbialo.`);
+        }
+        usedContainerNames.add(finalContainerName);
+
         const serviceConfig = {
             image: node.data.dockerImage || 'alpine:latest',
-            container_name: `${safeServiceName}_container`, // Nombre predecible y seguro
+            container_name: finalContainerName, // Usamos la variable validada
             labels: {
                 'com.topology.node_id': node.id,
                 'com.topology.managed': 'true'
@@ -106,7 +122,13 @@ function generateComposeYAML(nodes, connections = []) {
         }
 
         // Volúmenes y EnvVars
-        if (node.data.volumes) serviceConfig.volumes = node.data.volumes;
+        // Inyección de Volumen Persistente Automático
+        const autoVolume = `./volumes/${safeServiceName}:/root`;
+        if (node.data.volumes && node.data.volumes.length > 0) {
+            serviceConfig.volumes = [autoVolume, ...node.data.volumes];
+        } else {
+            serviceConfig.volumes = [autoVolume];
+        }
         if (node.data.envVars) {
             const envObj = {};
             node.data.envVars.forEach(e => { if (e.key) envObj[e.key] = e.value || ''; });

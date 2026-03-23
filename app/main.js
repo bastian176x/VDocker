@@ -1,9 +1,10 @@
 // app/main.js
-const { app, BrowserWindow, ipcMain, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron'); // Modified import
 const path = require('path');
 const topologyGenerator = require('./topology/generator');
 const { saveComposeFile } = require('./filesystem/composeWriter');
 const dockerService = require('./docker/service');
+const projectManager = require('./filesystem/projectManager');
 
 const preloadPath = path.resolve(__dirname, 'preload.js');
 const fs = require('fs');
@@ -35,8 +36,27 @@ function createWindow() {
     win.focus(); // <--- Esto es lo importante: pide el teclado al SO
   });
 
-  // Forzamos localhost para asegurar que vemos los cambios en tiempo real
-  win.loadURL('http://localhost:3000');
+  if (app.isPackaged) {
+    // MODO PRODUCCIÓN (.exe)
+    // Buscamos el archivo index.html compilado.
+    // Como main.js está en 'app/', subimos uno (..) y entramos a 'frontend/dist/'
+    const indexPath = path.join(__dirname, '../frontend/dist/index.html');
+
+    // DEBUG DE EMERGENCIA: Si no existe, muestra un error visual
+    if (!fs.existsSync(indexPath)) {
+      dialog.showErrorBox("Error Fatal", "No encuentro el archivo HTML en:\n" + indexPath);
+    }
+
+    win.loadFile(indexPath);
+
+  } else {
+    // MODO DESARROLLO (npm run dev)
+    win.loadURL('http://localhost:3000');
+
+    // Opcional: Abrir herramientas de desarrollo automáticamente en modo dev
+    // win.webContents.openDevTools(); 
+  }
+
 
   // win.loadFile(path.join(__dirname, '../frontend/dist/index.html')); // Comentamos esto por ahora
 }
@@ -82,7 +102,14 @@ ipcMain.handle('docker:run', async (event, topology) => {
     await dockerService.pullImages(requiredImages, (message) => sender.send('docker:progress', { message }));
 
     const containerNames = topology.nodes.map(n => n.data.containerName).filter(n => n);
-    return await dockerService.startLab(savedPath, containerNames);
+    const result = await dockerService.startLab(savedPath, containerNames);
+    
+    if (result.success) {
+      dockerService.streamLabLogs(savedPath, (logLine) => {
+        sender.send('docker:log', { message: logLine });
+      });
+    }
+    return result;
 
   } catch (error) {
     console.error('Error en Run:', error);
@@ -110,6 +137,21 @@ ipcMain.handle('docker:terminal', async (event, containerId) => {
   return await dockerService.openTerminal(containerId);
 });
 
+ipcMain.handle('terminal:start', async (event, containerId) => {
+  const sender = event.sender;
+  return await dockerService.attachTerminal(containerId, (data) => {
+    sender.send(`terminal:data:${containerId}`, data);
+  });
+});
+
+ipcMain.on('terminal:write', (event, { containerId, data }) => {
+  dockerService.writeTerminal(containerId, data);
+});
+
+ipcMain.on('terminal:stop', (event, containerId) => {
+  dockerService.stopTerminal(containerId);
+});
+
 ipcMain.handle('docker:status', async () => {
 
   // Asegúrate de que dockerService esté disponible en este scope
@@ -124,26 +166,92 @@ ipcMain.handle('docker:check', async () => {
   return await dockerService.checkDaemon();
 });
 
+// --- HANDLERS DE PERSISTENCIA DE PROYECTO (.json) ---
+
+// GUARDAR PROYECTO INTEGRAL
+ipcMain.handle('project:save', async (event, data) => {
+  const { canceled, filePath } = await dialog.showSaveDialog({
+    title: 'Guardar Proyecto Integral',
+    defaultPath: `laboratorio-${Date.now()}.vdlab`,
+    filters: [{ name: 'Archivos VDocker Lab', extensions: ['vdlab'] }, { name: 'Todos los archivos', extensions: ['*'] }]
+  });
+
+  if (canceled || !filePath) return { success: false };
+  return await projectManager.saveFullProject(filePath, data);
+});
+
+// CARGAR PROYECTO INTEGRAL
+ipcMain.handle('project:load', async () => {
+  const { canceled, filePaths } = await dialog.showOpenDialog({
+    title: 'Abrir Proyecto',
+    properties: ['openFile'],
+    filters: [{ name: 'Archivos VDocker Lab', extensions: ['vdlab'] }, { name: 'Todos los archivos', extensions: ['*'] }]
+  });
+
+  if (canceled || filePaths.length === 0) return { success: false };
+  return await projectManager.loadFullProject(filePaths[0]);
+});
+
 // --- FIX 4: LIMPIEZA DE ZOMBIES (Anti-Orphans) ---
-app.on('before-quit', (event) => {
+const { spawnSync } = require('child_process');
+
+function cleanupContainersSynchronously() {
   if (currentComposePath) {
-    console.log('💀 Aplicación cerrándose. Limpiando contenedores...');
-    event.preventDefault(); // Pausamos el cierre un momento
+    console.log(`💀 Iniciando limpieza síncrona de contenedores en: ${currentComposePath}`);
 
-    const { spawn } = require('child_process');
-    // Ejecutamos limpieza forzosa
-    const child = spawn('docker', ['compose', '-f', currentComposePath, 'down', '--remove-orphans']);
+    // Verificación de seguridad: ¿El archivo existe?
+    if (fs.existsSync(currentComposePath)) {
+      try {
+        // Ejecutamos docker compose down. 
+        // Omitimos 'stdio: inherit' para evitar que se cuelgue si la terminal ya murió.
+        const result = spawnSync('docker', ['compose', '-f', currentComposePath, 'down', '--remove-orphans'], {
+          // El truco mágico: Si el proceso padre (Electron) muere, el hijo (Docker) NO muere.
+          windowsHide: true,
+          timeout: 10000 // Máximo 10 segundos para no bloquear la PC eternamente
+        });
 
-    child.on('close', () => {
-      console.log('✅ Limpieza completada.');
-      currentComposePath = null;
-      app.quit(); // Salimos definitivamente
-    });
+        if (result.error) {
+          console.error('❌ Error ejecutando spawnSync:', result.error);
+        } else {
+          console.log(`✅ Limpieza completada. Código de salida: ${result.status}`);
+        }
+      } catch (err) {
+        console.error('❌ Excepción fatal durante la limpieza:', err);
+      }
+    } else {
+      console.warn('⚠️ No se encontró el archivo compose para limpiar:', currentComposePath);
+    }
 
-    // Timeout de seguridad (5s) por si Docker no responde
-    setTimeout(() => {
-      console.warn('⚠️ Timeout en limpieza, saliendo a la fuerza.');
-      app.exit(0);
-    }, 5000);
+    currentComposePath = null;
   }
+}
+
+// 1. Cierre normal de la ventana (La "X")
+app.on('before-quit', (e) => {
+  if (currentComposePath) {
+    // Pausar el cierre solo si hay algo que limpiar
+    e.preventDefault();
+    cleanupContainersSynchronously();
+    app.quit(); // Ahora sí, ciérrate.
+  }
+});
+
+// 2. Cierre por consola (Ctrl+C)
+process.on('SIGINT', () => {
+  console.log('\n🛑 Recibida señal SIGINT (Ctrl+C). Limpiando antes de morir...');
+  cleanupContainersSynchronously();
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 Recibida señal SIGTERM. Limpiando antes de morir...');
+  cleanupContainersSynchronously();
+  process.exit(0);
+});
+
+// 3. Opcional pero recomendado: Capturar errores fatales para que tampoco dejen zombies
+process.on('uncaughtException', (err) => {
+  console.error('\n💥 ERROR FATAL (uncaughtException). Limpiando antes de morir...', err);
+  cleanupContainersSynchronously();
+  process.exit(1);
 });
