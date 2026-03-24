@@ -1,0 +1,44 @@
+name: Despliegue Continuo (Generador de .exe)
+
+# ¿Cuándo se ejecuta? 
+# workflow_dispatch agrega un botón en GitHub para que tú lo actives manualmente cuando quieras sacar una nueva versión.
+on:
+  workflow_dispatch: 
+
+jobs:
+  build-windows:
+    name: Compilar para Windows
+    # OJO AQUÍ: Le pedimos a GitHub que encienda un servidor con WINDOWS, no con Linux.
+    runs-on: windows-latest 
+
+    steps:
+      - name: Descargar código fuente
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      # Instalamos todo tal cual como dice tu README.md
+      - name: Instalar dependencias (Backend)
+        run: npm install
+
+      - name: Instalar dependencias (Frontend)
+        run: |
+          cd frontend
+          npm install
+
+      # Ejecuta tu comando de build (Vite + Electron-Builder)
+      - name: Compilar y Empaquetar Proyecto
+        run: npm run build
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Permiso de seguridad interno de GitHub
+
+      # Toma el archivo .exe generado en la carpeta dist/ y lo sube a la nube para que lo descargues
+      - name: Subir instalador (.exe)
+        uses: actions/upload-artifact@v4
+        with:
+          name: VDocker-Instalador-Windows
+          path: dist/*.exe
+          retention-days: 7 # Guarda el archivo por 7 días
