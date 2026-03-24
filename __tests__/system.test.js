@@ -16,7 +16,12 @@ describe('Pruebas de Sistema Subcutáneas (Tabla TSIS)', () => {
     });
 
     afterAll(() => {
-        fs.rmSync(tempDir, { recursive: true, force: true });
+        try {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        } catch (error) {
+            // Ignoramos errores de permisos de root (comunes en CI Linux con Docker)
+            console.log(`Nota: Limpieza omitida en CI (${error.code})`);
+        }
     });
 
     // ==========================================

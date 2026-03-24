@@ -15,9 +15,13 @@ describe('Pruebas de Integración (Tabla de Casos TINT)', () => {
 
     // Después de todas las pruebas, limpiamos la basura del disco duro
     afterAll(() => {
-        fs.rmSync(tempDir, { recursive: true, force: true });
+        try {
+            fs.rmSync(tempDir, { recursive: true, force: true });
+        } catch (error) {
+            // Ignoramos errores de permisos de root (comunes en CI Linux con Docker)
+            console.log(`Nota: Limpieza omitida en CI (${error.code})`);
+        }
     });
-
     // ==========================================
     // TINT-01 y TINT-02: Integración Validador + Generador
     // ==========================================
