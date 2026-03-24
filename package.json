@@ -33,7 +33,8 @@
     },
     "files": [
       "app/**/*",
-      "frontend/dist/**/*"
+      "frontend/dist/**/*",
+      "build/icon.ico"
     ]
   },
   "dependencies": {

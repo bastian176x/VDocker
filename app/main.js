@@ -1,5 +1,5 @@
 // app/main.js
-const { app, BrowserWindow, ipcMain, shell, dialog } = require('electron'); // Modified import
+const { app, BrowserWindow, ipcMain, shell, dialog, Menu } = require('electron'); // Modified import
 const path = require('path');
 const topologyGenerator = require('./topology/generator');
 const { saveComposeFile } = require('./filesystem/composeWriter');
