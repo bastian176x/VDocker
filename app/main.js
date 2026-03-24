@@ -20,6 +20,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1000,
     height: 800,
+    icon: path.join(__dirname, '../build/icon.ico'),
     webPreferences: {
       preload: preloadPath, // Usamos la ruta absoluta
       contextIsolation: true, // OBLIGATORIO para que contextBridge funcione
@@ -29,6 +30,7 @@ function createWindow() {
     },
     show: false // Oculto al nacer, se muestra en 'ready-to-show'
   });
+  Menu.setApplicationMenu(null);
 
   // Esperar a que la ventana esté lista para mostrarse y forzar el foco
   win.once('ready-to-show', () => {
@@ -103,7 +105,7 @@ ipcMain.handle('docker:run', async (event, topology) => {
 
     const containerNames = topology.nodes.map(n => n.data.containerName).filter(n => n);
     const result = await dockerService.startLab(savedPath, containerNames);
-    
+
     if (result.success) {
       dockerService.streamLabLogs(savedPath, (logLine) => {
         sender.send('docker:log', { message: logLine });

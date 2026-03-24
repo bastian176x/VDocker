@@ -30,6 +30,7 @@ frontend/.vite/
 dist-electron/
 out/
 build/
+!build/icon.ico
 release/
 *.asar
 
