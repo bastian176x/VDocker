@@ -23,6 +23,8 @@ De esta forma, los usuarios pueden centrarse en el diseño y comportamiento del 
 - **Plantillas reutilizables:** Guarda tus escenarios como archivos `.vdlab` para compartirlos o reutilizarlos en futuras clases.
 - **Validación inteligente:** Detección de conflictos de puertos y errores de topología antes del despliegue.
 
+
+
 ## Descarga rápida (recomendado)
 
 Si deseas probar VDocker sin tener que compilar el código fuente, puedes descargar el instalador oficial (`.exe` para Windows) directamente desde nuestras *Releases*:
@@ -44,6 +46,30 @@ VDocker está construido con estándares modernos de la industria para garantiza
 - **CI/CD:** GitHub Actions (Validación y compilación automatizada de instaladores)
 
 ---
+
+## Metodología de desarrollo
+
+El desarrollo de VDocker sigue una estrategia de implementación estructurada en cinco fases principales para garantizar la calidad del software y su validación pedagógica (actuamente en etapa 5):
+
+```mermaid
+timeline
+    1 : Preparar entorno técnico
+      : Instalar Node.js, Electron, Docker, Docker Compose
+      : Configurar repositorio GitHub y pruebas exploratorias
+    2 : Implementar núcleo lógico
+      : Servicios de validación de topologías
+      : Generación de archivos docker-compose
+      : Gestión de laboratorios y acceso al FileSystem
+    3 : Integrar lógica con UI
+      : Exponer API interna mediante comunicación IPC
+      : Conectar con interfaz gráfica en React
+    4 : Ejecutar pruebas técnicas
+      : Pruebas de integración entre módulos
+      : Pruebas de sistema end-to-end con laboratorios reales
+    5 : Ejecutar pruebas con usuarios
+      : Grupo control vs. Grupo experimental
+      : Medición de rendimiento, usabilidad (SUS) y carga mental (NASA-TLX)
+```
 
 ## Requisitos previos (Para desarrolladores)
 
@@ -95,7 +121,7 @@ Este comando ejecutará concurrentemente:
 
 ## Pruebas (Testing automatizado)
 
-El proyecto cuenta con una suite de pruebas unitarias, de integración y de sistema implementadas con **Jest** para garantizar la integridad de la generación de topologías, el manejo del sistema de archivos y la interacción con el motor de Docker.
+El proyecto cuenta con una suite +20 tests automatizados, que incluyen pruebas unitarias, de integración y de sistema implementadas con **Jest** para garantizar la integridad de la generación de topologías, el manejo del sistema de archivos y la interacción con el motor de Docker.
 
 Para ejecutar la batería de pruebas localmente y generar el reporte de métricas de cobertura:
 
