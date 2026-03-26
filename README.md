@@ -4,14 +4,14 @@
 
 Una aplicación de escritorio basada en Electron y React para diseñar y gestionar topologías de Docker visualmente.
 
-## 🚀 Descarga Rápida (Recomendado)
+## Descarga Rápida (Recomendado)
 
-Si deseas probar VDocker sin tener que compilar el código fuente, puedes descargar la última versión del instalador (`.exe` para Windows) generada automáticamente por nuestro sistema de Despliegue Continuo:
+Si deseas probar VDocker sin tener que compilar el código fuente, puedes descargar el instalador oficial (`.exe` para Windows) directamente desde nuestras *Releases*:
 
-1. Ve a la pestaña **[Actions](https://github.com/bastian176x/VDocker/actions)** de este repositorio.
-2. En el menú lateral izquierdo, selecciona **Despliegue Continuo (Generador de .exe)**.
-3. Haz clic en la ejecución más reciente que tenga un check verde (✅).
-4. Ve al fondo de la página y, en la sección **Artifacts**, haz clic en `VDocker-Instalador-Windows` para descargar el archivo `.zip` que contiene el ejecutable.
+1. Ve a la página de **[Releases](https://github.com/bastian176x/VDocker/releases/latest)** de este repositorio.
+2. Busca la versión más reciente (ej. `v1.0.0`).
+3. Desplázate hasta el final de las notas de esa versión, a la sección **Assets**.
+4. Haz clic en el archivo ejecutable (ej. `VDocker-Setup.exe`) para descargarlo e instalarlo en tu equipo.
 
 ---
 
