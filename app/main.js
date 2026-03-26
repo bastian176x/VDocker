@@ -80,10 +80,14 @@ app.on('activate', () => {
 // VARIABLE GLOBAL PARA RECORDAR LA RUTA
 let currentComposePath = null;
 
-// ... setup de ventana ...
+let isDeployingLab = false;
 
 // Handle Docker Compose generation
 ipcMain.handle('docker:run', async (event, topology) => {
+  if (isDeployingLab) {
+    return { success: false, message: 'Procesando...' };
+  }
+  isDeployingLab = true;
   try {
     const yamlContent = topologyGenerator.generateComposeYAML(topology.nodes, topology.connections || []);
 
@@ -116,6 +120,8 @@ ipcMain.handle('docker:run', async (event, topology) => {
   } catch (error) {
     console.error('Error en Run:', error);
     return { success: false, message: error.message };
+  } finally {
+    isDeployingLab = false;
   }
 });
 

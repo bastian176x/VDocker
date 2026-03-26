@@ -38,6 +38,7 @@ function App() {
   const [nodeStates, setNodeStates] = useState<Record<string, { status: string; containerId: string }>>({});
   const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const [isStopping, setIsStopping] = useState(false);
+  const [isDeploying, setIsDeploying] = useState(false);
   const [logs, setLogs] = useState<{ time: string, message: string, isContainerLog?: boolean }[]>([]);
   const [showLogs, setShowLogs] = useState(true);
 
@@ -185,11 +186,14 @@ function App() {
   };
 
   const handleRun = async () => {
-    // 1. Validar si hay nodos
-    if (nodes.length === 0) {
-      toast.error('No hay nodos para ejecutar');
-      return;
-    }
+    if (isDeploying) return;
+    setIsDeploying(true);
+    try {
+      // 1. Validar si hay nodos
+      if (nodes.length === 0) {
+        toast.error('No hay nodos para ejecutar');
+        return;
+      }
 
     // PASO CRÍTICO: Verificar si Docker vive ANTES de poner "Cargando..."
     // @ts-ignore
@@ -249,6 +253,9 @@ function App() {
       setIsRunning(false);
       setSystemStatus('stopped');
       setLoadingMessage(null);
+    }
+    } finally {
+      setIsDeploying(false);
     }
   };
 
@@ -471,7 +478,7 @@ function App() {
           {/* Botón PLAY / Ejecutar */}
           <button
             onClick={handleRun}
-            disabled={isRunning}
+            disabled={isRunning || isDeploying}
             className="flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-lg shadow-blue-600/20 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Play className="w-4 h-4" />

@@ -2,9 +2,28 @@
 
 [![Integración Continua VDocker](https://github.com/bastian176x/VDocker/actions/workflows/ci.yml/badge.svg)](https://github.com/bastian176x/VDocker/actions/workflows/ci.yml)
 
-Una aplicación de escritorio basada en Electron y React para diseñar y gestionar topologías de Docker visualmente.
+> ![Demo de VDocker](https://imgur.com/gOa5rC1)
 
-## Descarga Rápida (Recomendado)
+VDocker es una aplicación de escritorio diseñada para construir, gestionar y desplegar laboratorios basados en contenedores Docker a través de una interfaz visual intuitiva (Drag & Drop).
+
+## Problema y solución
+
+La creación de entornos de práctica con Docker suele implicar la edición manual de archivos `docker-compose.yml`, la gestión de redes, puertos y volúmenes, y el uso intensivo de la línea de comandos. Esto puede resultar propenso a errores de sintaxis, configuraciones inconsistentes y dificultades para visualizar la topología completa del sistema.
+
+**VDocker aborda este problema** proporcionando una interfaz visual que permite definir servicios, redes y relaciones entre contenedores mediante un editor Drag & Drop. A partir de esta representación gráfica, la aplicación genera automáticamente la configuración equivalente en Docker Compose y gestiona el ciclo de vida de los contenedores (creación, ejecución y eliminación).
+
+De esta forma, los usuarios pueden centrarse en el diseño y comportamiento del entorno, sin preocuparse por los detalles de implementación en YAML o comandos de Docker.
+
+## Características principales
+
+- **Editor Visual Drag & Drop:** Diseña topologías de red y servicios sin escribir una sola línea de código YAML.
+- **Catálogo de Servicios Integrado:** Nodos preconfigurados para bases de datos, servidores web, clientes y servicios vulnerables para laboratorios de ciberseguridad.
+- **Despliegue con 1 Clic:** Inicia, detén y limpia laboratorios completos directamente desde la interfaz.
+- **Terminal Embebida:** Interactúa con tus contenedores sin salir de la aplicación.
+- **Plantillas Reutilizables:** Guarda tus escenarios como archivos `.vdlab` para compartirlos o reutilizarlos en futuras clases.
+- **Validación Inteligente:** Detección de conflictos de puertos y errores de topología antes del despliegue.
+
+## Descarga rápida (recomendado)
 
 Si deseas probar VDocker sin tener que compilar el código fuente, puedes descargar el instalador oficial (`.exe` para Windows) directamente desde nuestras *Releases*:
 
@@ -15,39 +34,51 @@ Si deseas probar VDocker sin tener que compilar el código fuente, puedes descar
 
 ---
 
-## Requisitos Previos (Para Desarrolladores)
+## Stack tecnológico
+
+VDocker está construido con estándares modernos de la industria para garantizar rendimiento, mantenibilidad y escalabilidad:
+
+- **Frontend:** React, Vite
+- **Desktop/Backend:** Electron, Node.js, Dockerode
+- **Testing:** Jest (Suite completa de pruebas unitarias, de integración y de sistema)
+- **CI/CD:** GitHub Actions (Validación y compilación automatizada de instaladores)
+
+---
+
+## Requisitos previos (Para Desarrolladores)
 
 Si deseas clonar y modificar el proyecto, asegúrate de tener instalado:
 
 - [Node.js](https://nodejs.org/) (versión recomendada: 18 o superior)
 - [npm](https://www.npmjs.com/) (normalmente viene con Node.js)
 - Git
+- Docker Desktop (en ejecución)
 
 ## Instalación
 
 1. **Clonar el repositorio:**
 
-   ```bash
-   git clone [https://github.com/bastian176x/VDocker.git](https://github.com/bastian176x/VDocker.git)
-   cd VDocker
-   ```
+```bash
+git clone https://github.com/bastian176x/VDocker.git
+cd VDocker
+```
 
-2. **Instalar dependencias del proyecto raíz (Electron):**
+1. **Instalar dependencias del proyecto raíz (Electron):**
 
-   ```bash
-   npm install
-   ```
+```bash
+npm install
+```
 
-3. **Instalar dependencias del frontend (React/Vite):**
+1. **Instalar dependencias del frontend (React/Vite):**
 
-   ```bash
-   cd frontend
-   npm install
-   cd ..
-   ```
+```bash
+cd frontend
+npm install
+cd ..
+```
 
 > [!NOTE]
-> Es importante realizar la instalación en **ambas** carpetas (`/` y `/frontend`) para que todos los comandos funcionen correctamente.
+> Es importante realizar la instalación en ambas carpetas (/ y /frontend) para que todos los comandos funcionen correctamente.
 
 ## Desarrollo
 
@@ -58,12 +89,13 @@ npm run dev
 ```
 
 Este comando ejecutará concurrentemente:
+
 - Servidor de desarrollo de Vite (Frontend)
 - Ventana de Electron
 
 ## Pruebas (Testing automatizado)
 
-El proyecto cuenta con una robusta suite de pruebas unitarias, de integración y de sistema implementadas con **Jest** para garantizar la integridad de la generación de topologías, el manejo del sistema de archivos y la interacción con el motor de Docker.
+El proyecto cuenta con una suite de pruebas unitarias, de integración y de sistema implementadas con **Jest** para garantizar la integridad de la generación de topologías, el manejo del sistema de archivos y la interacción con el motor de Docker.
 
 Para ejecutar la batería de pruebas localmente y generar el reporte de métricas de cobertura:
 
@@ -80,12 +112,13 @@ npm run build
 ```
 
 Este proceso:
+
 1. Compilará el frontend de React.
 2. Empaquetará la aplicación Electron utilizando `electron-builder`.
 
 Los archivos generados se encontrarán en la carpeta `dist/`.
 
-## Estructura del Proyecto
+## Estructura del proyecto
 
 - `app/` - Código principal del proceso de Electron (`main.js`, preload scripts, etc.).
 - `frontend/` - Código fuente de la interfaz de usuario (React, componentes, estilos).
@@ -94,7 +127,7 @@ Los archivos generados se encontrarán en la carpeta `dist/`.
 - `__tests__/` - Suite de pruebas unitarias, de integración y sistema (Jest).
 - `.github/workflows/` - Configuración del pipeline de Integración y Despliegue Continuo (CI/CD).
 
-## Solución de Problemas
+## Licencia
 
-- **Error de permisos al construir:** Si encuentras errores relacionados con permisos o enlaces simbólicos (symlinks) en Windows durante el build, asegúrate de tener permisos de administrador o que tu usuario tenga los privilegios necesarios ("Crear enlaces simbólicos").
-- **Archivos ignorados:** Revisa el archivo `.gitignore` para ver qué archivos y carpetas se excluyen del control de versiones (ej. `node_modules`, carpetas de `dist`, logs, reportes de coverage).
+> [!TIP]
+> Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) para más detalles.
