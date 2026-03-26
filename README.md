@@ -1,8 +1,8 @@
-# VDocker - Editor Visual de Topologías Docker
+# VDocker - Editor visual de topologías Docker
 
 [![Integración Continua VDocker](https://github.com/bastian176x/VDocker/actions/workflows/ci.yml/badge.svg)](https://github.com/bastian176x/VDocker/actions/workflows/ci.yml)
 
-> ![Demo de VDocker](https://imgur.com/gOa5rC1)
+> ![Demo de VDocker](https://i.imgur.com/gOa5rC1.png)
 
 VDocker es una aplicación de escritorio diseñada para construir, gestionar y desplegar laboratorios basados en contenedores Docker a través de una interfaz visual intuitiva (Drag & Drop).
 
@@ -16,12 +16,12 @@ De esta forma, los usuarios pueden centrarse en el diseño y comportamiento del 
 
 ## Características principales
 
-- **Editor Visual Drag & Drop:** Diseña topologías de red y servicios sin escribir una sola línea de código YAML.
-- **Catálogo de Servicios Integrado:** Nodos preconfigurados para bases de datos, servidores web, clientes y servicios vulnerables para laboratorios de ciberseguridad.
-- **Despliegue con 1 Clic:** Inicia, detén y limpia laboratorios completos directamente desde la interfaz.
-- **Terminal Embebida:** Interactúa con tus contenedores sin salir de la aplicación.
-- **Plantillas Reutilizables:** Guarda tus escenarios como archivos `.vdlab` para compartirlos o reutilizarlos en futuras clases.
-- **Validación Inteligente:** Detección de conflictos de puertos y errores de topología antes del despliegue.
+- **Editor visual Drag & Drop:** Diseña topologías de red y servicios sin escribir una sola línea de código YAML.
+- **Catálogo de servicios integrado:** Nodos preconfigurados para bases de datos, servidores web, clientes y servicios vulnerables para laboratorios de ciberseguridad.
+- **Despliegue con 1 clic:** Inicia, detén y limpia laboratorios completos directamente desde la interfaz.
+- **Terminal embebida:** Interactúa con tus contenedores sin salir de la aplicación.
+- **Plantillas reutilizables:** Guarda tus escenarios como archivos `.vdlab` para compartirlos o reutilizarlos en futuras clases.
+- **Validación inteligente:** Detección de conflictos de puertos y errores de topología antes del despliegue.
 
 ## Descarga rápida (recomendado)
 
@@ -45,7 +45,7 @@ VDocker está construido con estándares modernos de la industria para garantiza
 
 ---
 
-## Requisitos previos (Para Desarrolladores)
+## Requisitos previos (Para desarrolladores)
 
 Si deseas clonar y modificar el proyecto, asegúrate de tener instalado:
 
@@ -129,5 +129,5 @@ Los archivos generados se encontrarán en la carpeta `dist/`.
 
 ## Licencia
 
-> [!TIP]
+> [!NOTE]
 > Este proyecto está bajo la Licencia MIT - mira el archivo [LICENSE](LICENSE) para más detalles.
