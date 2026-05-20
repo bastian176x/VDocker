@@ -6,14 +6,6 @@
 
 VDocker es una aplicación de escritorio diseñada para construir, gestionar y desplegar laboratorios basados en contenedores Docker a través de una interfaz visual intuitiva (Drag & Drop).
 
-## Problema y solución
-
-La creación de entornos de práctica con Docker suele implicar la edición manual de archivos `docker-compose.yml`, la gestión de redes, puertos y volúmenes, y el uso intensivo de la línea de comandos. Esto puede resultar propenso a errores de sintaxis, configuraciones inconsistentes y dificultades para visualizar la topología completa del sistema.
-
-**VDocker aborda este problema** proporcionando una interfaz visual que permite definir servicios, redes y relaciones entre contenedores mediante un editor Drag & Drop. A partir de esta representación gráfica, la aplicación genera automáticamente la configuración equivalente en Docker Compose y gestiona el ciclo de vida de los contenedores (creación, ejecución y eliminación).
-
-De esta forma, los usuarios pueden centrarse en el diseño y comportamiento del entorno, sin preocuparse por los detalles de implementación en YAML o comandos de Docker.
-
 ## Características principales
 
 - **Editor visual Drag & Drop:** Diseña topologías de red y servicios sin escribir una sola línea de código YAML.
