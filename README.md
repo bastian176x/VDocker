@@ -16,6 +16,25 @@ VDocker es una aplicación de escritorio diseñada para construir, gestionar y d
 - **Validación inteligente:** Detección de conflictos de puertos y errores de topología antes del despliegue.
 
 
+---
+
+## Guía de uso rápido
+
+Breve guía del uso del sistema:
+
+### 1. Diseño y conexión de topologías
+* **Selección y Conexión:** Arrastre los componentes desde la paleta lateral hacia el lienzo. Para interconectarlos, haga clic en un puerto de salida (punto azul) y haga clic en el puerto de entrada del nodo destino para establecer la red *bridge*.
+* **Propiedades:** Al seleccionar un nodo, utilice el panel derecho para ajustar variables críticas como la imagen base, el mapeo de puertos y volúmenes persistentes.
+
+### 2. Ejecución y monitoreo
+* **Validación y PLAY:** Presione el botón **PLAY**. El sistema realizará una verificación automática de colisiones de puertos y nombres. Si la topología es válida, se iniciará el despliegue y los nodos cambiarán a color verde.
+
+### 3. Interacción y persistencia
+* **Acceso a Terminal:** Haga doble clic sobre cualquier nodo en ejecución para abrir una ventana de terminal nativa. Esto permite interactuar directamente con el sistema de archivos del contenedor.
+* **Gestión de Proyectos:** Utilice las funciones de **Guardar** y **Abrir** para persistir sus laboratorios en archivos `.vdlab`. Estos paquetes incluyen tanto la estructura lógica como los datos del usuario.
+
+---
+
 
 ## Descarga rápida (recomendado)
 
