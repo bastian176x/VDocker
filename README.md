@@ -19,8 +19,7 @@ VDocker es una aplicación de escritorio diseñada para construir, gestionar y d
 ---
 
 ## Guía de uso rápido
-
-Breve guía del uso del sistema:
+(Para más detalle puede descargar el manual de usuario en [Releases](https://github.com/bastian176x/VDocker/releases/latest))
 
 ### 1. Diseño y conexión de topologías
 * **Selección y Conexión:** Arrastre los componentes desde la paleta lateral hacia el lienzo. Para interconectarlos, haga clic en un puerto de salida (punto azul) y haga clic en el puerto de entrada del nodo destino para establecer la red *bridge*.
