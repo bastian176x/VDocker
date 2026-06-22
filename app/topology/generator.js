@@ -33,10 +33,39 @@ function generateComposeYAML(nodes, connections = []) {
     });
     // ---------------------------------------------
 
-    // 1. Generate Networks (Usando solo las válidas)
+    // 1. Generar redes por Componentes Conexos (BFS)
+    const adjList = {};
+    nodes.forEach(n => adjList[n.id] = []);
     validConnections.forEach(conn => {
-        const safeId = conn.id.replace(/[^a-zA-Z0-9_-]/g, '_');
-        networks[`net_${safeId}`] = { driver: 'bridge' };
+        if (adjList[conn.source] && adjList[conn.target]) {
+            adjList[conn.source].push(conn.target);
+            adjList[conn.target].push(conn.source);
+        }
+    });
+
+    const visited = new Set();
+    const islands = [];
+    nodes.forEach(node => {
+        if (!visited.has(node.id)) {
+            const component = [];
+            const queue = [node.id];
+            visited.add(node.id);
+            while (queue.length > 0) {
+                const current = queue.shift();
+                component.push(current);
+                adjList[current].forEach(neighbor => {
+                    if (!visited.has(neighbor)) {
+                        visited.add(neighbor);
+                        queue.push(neighbor);
+                    }
+                });
+            }
+            if (component.length > 1) islands.push(component);
+        }
+    });
+
+    islands.forEach((_, index) => {
+        networks[`net_island_${index}`] = { driver: 'bridge' };
     });
 
     // 2. Generate Services
@@ -58,7 +87,7 @@ function generateComposeYAML(nodes, connections = []) {
 
         // VALIDACIÓN DE CONTENEDOR DUPLICADO
         if (usedContainerNames.has(finalContainerName)) {
-             throw new Error(`CONFLICTO CRÍTICO: El nombre de contenedor "${finalContainerName}" está en uso por otro nodo. Cámbialo.`);
+            throw new Error(`CONFLICTO CRÍTICO: El nombre de contenedor "${finalContainerName}" está en uso por otro nodo. Cámbialo.`);
         }
         usedContainerNames.add(finalContainerName);
 
@@ -84,10 +113,13 @@ function generateComposeYAML(nodes, connections = []) {
             serviceConfig.privileged = true;
         }
 
-        // Redes: Buscamos solo en validConnections
-        const nodeNetworks = validConnections
-            .filter(conn => conn.source === node.id || conn.target === node.id)
-            .map(conn => `net_${conn.id.replace(/[^a-zA-Z0-9_-]/g, '_')}`);
+        // Redes: Asignar red de la isla (componente conexo) del nodo
+        const nodeNetworks = [];
+        islands.forEach((island, index) => {
+            if (island.includes(node.id)) {
+                nodeNetworks.push(`net_island_${index}`);
+            }
+        });
 
         if (nodeNetworks.length > 0) {
             serviceConfig.networks = nodeNetworks;
@@ -96,7 +128,8 @@ function generateComposeYAML(nodes, connections = []) {
             // Dejamos que use la red 'default' de Docker para que funcionen los port-mappings.
             // Solo usamos 'none' si realmente queremos aislamiento total.
             if (!node.data.ports || node.data.ports.length === 0) {
-                serviceConfig.network_mode = 'none';
+                //serviceConfig.network_mode = 'none';
+                console.log(`Nodo ${safeServiceName} sin conexiones, usando red por defecto.`);
             }
         }
 

@@ -43,7 +43,7 @@ describe('Módulo Validador y Generador de docker-compose (Tabla 4.4)', () => {
 
         expect(yamlResult).toContain('kali_container');
         expect(yamlResult).toContain('victima_container');
-        expect(yamlResult).toContain('net_conn-1');
+        expect(yamlResult).toContain('net_island_0');
         expect(yamlResult).toContain('version:');
     });
 

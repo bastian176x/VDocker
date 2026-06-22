@@ -24,6 +24,8 @@ try {
     },
     saveProject: (data) => ipcRenderer.invoke('project:save', data),
     loadProject: () => ipcRenderer.invoke('project:load'),
+    deleteVolume: (nodeName, nodeId) => ipcRenderer.invoke('volume:delete', nodeName, nodeId),
+    renameVolume: (oldName, newName, nodeId) => ipcRenderer.invoke('volume:rename', oldName, newName, nodeId),
     onDockerProgress: (callback) => ipcRenderer.on('docker:progress', callback),
     onDockerLog: (callback) => ipcRenderer.on('docker:log', callback)
   });

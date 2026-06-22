@@ -188,6 +188,48 @@ ipcMain.handle('project:save', async (event, data) => {
   return await projectManager.saveFullProject(filePath, data);
 });
 
+// ELIMINAR VOLUMEN ZOMBI
+ipcMain.handle('volume:delete', async (event, nodeName, nodeId) => {
+  const rawName = nodeName || `service-${nodeId}`;
+  const safeName = rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  const volumePath = path.join(os.tmpdir(), 'docker-topology-lab', 'volumes', safeName);
+  try {
+    if (fs.existsSync(volumePath)) {
+      fs.rmSync(volumePath, { recursive: true, force: true });
+      console.log(`🧹 Volumen zombi eliminado: ${safeName}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error(`Error eliminando volumen ${safeName}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
+// RENOMBRAR VOLUMEN ZOMBI
+ipcMain.handle('volume:rename', async (event, oldName, newName, nodeId) => {
+  const oldRaw = oldName || `service-${nodeId}`;
+  const newRaw = newName || `service-${nodeId}`;
+  const safeOld = oldRaw.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+  const safeNew = newRaw.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+
+  if (safeOld === safeNew) return { success: true };
+
+  const volumesDir = path.join(os.tmpdir(), 'docker-topology-lab', 'volumes');
+  const oldPath = path.join(volumesDir, safeOld);
+  const newPath = path.join(volumesDir, safeNew);
+
+  try {
+    if (fs.existsSync(oldPath)) {
+      fs.renameSync(oldPath, newPath);
+      console.log(`📁 Volumen renombrado: ${safeOld} → ${safeNew}`);
+    }
+    return { success: true };
+  } catch (error) {
+    console.error(`Error renombrando volumen ${safeOld} → ${safeNew}:`, error);
+    return { success: false, error: error.message };
+  }
+});
+
 // CARGAR PROYECTO INTEGRAL
 ipcMain.handle('project:load', async () => {
   const { canceled, filePaths } = await dialog.showOpenDialog({
@@ -231,6 +273,12 @@ function cleanupContainersSynchronously() {
     }
 
     currentComposePath = null;
+  }
+
+  const tempDir = path.join(os.tmpdir(), 'docker-topology-lab');
+  if (fs.existsSync(tempDir)) {
+    fs.rmSync(tempDir, { recursive: true, force: true });
+    console.log('🧹 Directorio temporal y volúmenes destruidos al cerrar.');
   }
 }
 

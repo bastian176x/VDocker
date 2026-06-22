@@ -133,6 +133,11 @@ function App() {
     }
     // ----------------------------------------------------
 
+    const nodeToDelete = nodes.find(n => n.id === nodeId);
+    if (nodeToDelete) {
+      window.electronAPI.deleteVolume(nodeToDelete.data.name, nodeToDelete.id);
+    }
+
     setNodes(nodes.filter(n => n.id !== nodeId));
     setConnections(connections.filter(c => c.source !== nodeId && c.target !== nodeId));
     if (selectedNodeId === nodeId) {
@@ -180,6 +185,12 @@ function App() {
   };
 
   const handleNodeUpdate = (updatedNode: DockerNode) => {
+    const oldNode = nodes.find(n => n.id === updatedNode.id);
+    if (oldNode && oldNode.data.name !== updatedNode.data.name) {
+      // @ts-ignore
+      window.electronAPI.renameVolume(oldNode.data.name, updatedNode.data.name, updatedNode.id);
+    }
+
     setNodes(nodes.map(node =>
       node.id === updatedNode.id ? updatedNode : node
     ));

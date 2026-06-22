@@ -14,10 +14,23 @@ function saveFullProject(filePath, topologyData) {
             // 1. Guardar el JSON del proyecto
             zip.addFile("topology.json", Buffer.from(JSON.stringify(topologyData, null, 2), "utf8"));
 
-            // 2. Guardar la carpeta de volúmenes si existe
+            // 2. Guardar solo los volúmenes correspondientes a nodos válidos de la topología
             const volumesDir = path.join(tempDir, 'volumes');
             if (fs.existsSync(volumesDir)) {
-                zip.addLocalFolder(volumesDir, "volumes");
+                const nodes = topologyData.topologia?.nodes || topologyData.nodes || [];
+                const safeNames = new Set(
+                    nodes.map(node => {
+                        const rawName = node.data.name || `service-${node.id}`;
+                        return rawName.toLowerCase().replace(/[^a-z0-9_-]/g, '_');
+                    })
+                );
+                const subfolders = fs.readdirSync(volumesDir);
+                for (const folder of subfolders) {
+                    const folderPath = path.join(volumesDir, folder);
+                    if (fs.statSync(folderPath).isDirectory() && safeNames.has(folder)) {
+                        zip.addLocalFolder(folderPath, path.join("volumes", folder));
+                    }
+                }
             }
 
             // 3. Escribir el archivo .aglab
