@@ -1,3 +1,4 @@
+//__tests__/generator.test.js
 const { generateComposeYAML } = require('../app/topology/generator');
 
 describe('Módulo Validador y Generador de docker-compose (Tabla 4.4)', () => {

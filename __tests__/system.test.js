@@ -1,3 +1,4 @@
+// __tests__/system.test.js
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -63,25 +64,34 @@ describe('Pruebas de Sistema Subcutáneas (Tabla TSIS)', () => {
     // TSIS-04: Manejo de errores de validación
     // ==========================================
     test('TSIS-04: Conflicto de puertos muestra error y bloquea generación', async () => {
+        const yamlPath = path.join(tempDir, 'docker-compose.tsis04.yml');
+
         // 1. El usuario diseña una topología con conflicto de puertos
         const topologiaInvalida = [
             { id: 'n1', data: { name: 'web1', dockerImage: 'nginx', ports: ['80:80'] } },
             { id: 'n2', data: { name: 'web2', dockerImage: 'apache', ports: ['80:80'] } }
         ];
 
-        // 2. Solicita la ejecución del laboratorio
+        // 2. Solicita la ejecución: el backend intenta generar y desplegar
         let errorCapturado = null;
+        let despliegueIntentado = false;
         try {
-            // El backend intenta generar el YAML
-            generateComposeYAML(topologiaInvalida, []);
+            const yamlContent = generateComposeYAML(topologiaInvalida, []);
+            fs.writeFileSync(yamlPath, yamlContent);
+            despliegueIntentado = true;
+            await dockerService.startLab(yamlPath);
         } catch (error) {
             errorCapturado = error.message;
         }
 
-        // 3. Resultado esperado: Muestra mensaje claro y no genera YAML ni contenedores
+        // 3. Mensaje claro de error
         expect(errorCapturado).not.toBeNull();
         expect(errorCapturado).toContain('CONFLICTO CRÍTICO');
         expect(errorCapturado).toContain('puerto 80 ya está en uso');
+
+        // 4. No se generó YAML ni se alcanzó el despliegue de contenedores
+        expect(fs.existsSync(yamlPath)).toBe(false);
+        expect(despliegueIntentado).toBe(false);
     });
 
     // ==========================================

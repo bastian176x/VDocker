@@ -1,3 +1,4 @@
+// __tests__/infrastructure.test.js
 // Interceptamos librerías nativas y externas
 jest.mock('fs');
 jest.mock('adm-zip');

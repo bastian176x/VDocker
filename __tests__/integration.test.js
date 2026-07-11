@@ -1,3 +1,4 @@
+// __tests__/integration.test.js
 const fs = require('fs');
 const path = require('path');
 const os = require('os');
@@ -26,30 +27,38 @@ describe('Pruebas de Integración (Tabla de Casos TINT)', () => {
     // TINT-01 y TINT-02: Integración Validador + Generador
     // ==========================================
     test('TINT-01: Validación y generación exitosa de YAML con topología válida', () => {
+        const yamlPath = path.join(tempDir, 'compose_tint01.yml');
         const nodos = [
             { id: 'node-1', data: { name: 'web', dockerImage: 'nginx:latest', ports: ['8080:80'] } }
         ];
 
-        // Ejecutamos el flujo integrado
+        // Flujo integrado: generación -> escritura en disco
         const yamlResult = generateComposeYAML(nodos, []);
+        fs.writeFileSync(yamlPath, yamlResult);
 
-        // Verificamos que se completó sin errores y contiene los datos
-        expect(yamlResult).toContain('version:');
-        expect(yamlResult).toContain('nginx:latest');
-        expect(yamlResult).toContain('8080:80');
+        // El archivo existe físicamente y su contenido es correcto
+        expect(fs.existsSync(yamlPath)).toBe(true);
+        const contenidoEnDisco = fs.readFileSync(yamlPath, 'utf8');
+        expect(contenidoEnDisco).toContain('version:');
+        expect(contenidoEnDisco).toContain('nginx:latest');
+        expect(contenidoEnDisco).toContain('8080:80');
     });
 
     test('TINT-02: Intercepción de conflictos detiene la generación del archivo', () => {
-        // Topología con conflicto de nombres intencional
+        const yamlPath = path.join(tempDir, 'compose_tint02.yml');
         const nodosConflicto = [
-            { id: 'node-1', data: { name: 'mismo-nombre', dockerImage: 'alpine' } },
-            { id: 'node-2', data: { name: 'mismo-nombre', dockerImage: 'ubuntu' } }
+            { id: 'node-1', data: { name: 'web1', dockerImage: 'nginx:latest', ports: ['8080:80'] } },
+            { id: 'node-2', data: { name: 'web2', dockerImage: 'apache:latest', ports: ['8080:80'] } }
         ];
 
-        // Verificamos que el sistema lanza el error y NO genera nada
+        // El flujo se corta en validación: nunca se llega a escribir
         expect(() => {
-            generateComposeYAML(nodosConflicto, []);
+            const yamlResult = generateComposeYAML(nodosConflicto, []);
+            fs.writeFileSync(yamlPath, yamlResult);
         }).toThrow('CONFLICTO CRÍTICO');
+
+        // Verificamos físicamente que NO se creó ningún archivo en disco
+        expect(fs.existsSync(yamlPath)).toBe(false);
     });
 
     // ==========================================
@@ -78,22 +87,51 @@ describe('Pruebas de Integración (Tabla de Casos TINT)', () => {
     });
 
     // ==========================================
-    // TINT-04: Integración Servicio Plantillas
+    // TINT-04: Integración Plantillas + FileSystem
     // ==========================================
-    test('TINT-04: Aplicación de ArchivoPlantilla para crear nuevo laboratorio', () => {
-        // NOTA: Como la funcionalidad de plantillas está en Backlog (RF3), 
-        // validamos la estructura de datos simulando la respuesta del módulo 
-        // para cumplir con la cobertura documental de la tesis.
-        const plantillaBase = { layout: [{ id: 'p1', name: 'Kali' }] };
-        const generarDesdePlantilla = (plantilla) => {
-            if (!plantilla) throw new Error('Plantilla inválida');
-            return { nodos: [{ id: 'nuevo-1', data: { name: plantilla.layout[0].name } }] };
+    test('TINT-04: Aplicación de un ArchivoPlantilla en disco para crear un nuevo laboratorio', () => {
+        const plantillaPath = path.join(tempDir, 'plantilla_database.json');
+        const yamlPath = path.join(tempDir, 'compose_tint04.yml');
+
+        // 1. El catálogo define una plantilla de servicio con su configuración
+        //    predefinida (imagen base, puertos y variables de entorno).
+        //    La persistimos como ArchivoPlantilla en el sistema de archivos.
+        const archivoPlantilla = {
+            type: 'database',
+            defaults: {
+                name: 'db-postgres-1838',
+                dockerImage: 'postgres:15-alpine',
+                envVars: [{ key: 'POSTGRES_PASSWORD', value: 'admin123' }],
+                ports: ['5432'],
+                volumes: []
+            }
         };
+        fs.writeFileSync(plantillaPath, JSON.stringify(archivoPlantilla, null, 2), 'utf8');
+        expect(fs.existsSync(plantillaPath)).toBe(true);
 
-        const resultado = generarDesdePlantilla(plantillaBase);
-        expect(resultado.nodos[0].data.name).toBe('Kali');
+        // 2. El sistema lee la plantilla desde disco y la aplica para crear el nodo
+        const plantillaLeida = JSON.parse(fs.readFileSync(plantillaPath, 'utf8'));
+        const nodosDesdePlantilla = [
+            {
+                id: 'node-tint04',
+                type: plantillaLeida.type,
+                position: { x: 200, y: 150 },
+                data: { ...plantillaLeida.defaults }
+            }
+        ];
+
+        // 3. Flujo integrado: ArchivoPlantilla (FS) -> nodo -> generación de YAML
+        const yamlResult = generateComposeYAML(nodosDesdePlantilla, []);
+        fs.writeFileSync(yamlPath, yamlResult);
+
+        // 4. El laboratorio creado refleja fielmente la configuración de la plantilla
+        expect(fs.existsSync(yamlPath)).toBe(true);
+        const contenidoEnDisco = fs.readFileSync(yamlPath, 'utf8');
+        expect(contenidoEnDisco).toContain('postgres:15-alpine');
+        expect(contenidoEnDisco).toContain('POSTGRES_PASSWORD: admin123');
+        expect(contenidoEnDisco).toContain('5432');
+        expect(contenidoEnDisco).toContain('db-postgres-1838_container');
     });
-
     // ==========================================
     // TINT-05 y TINT-06: Integración BackendCore + DockerEngine
     // ==========================================
